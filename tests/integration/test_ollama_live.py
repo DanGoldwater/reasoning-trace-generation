@@ -15,13 +15,13 @@ pytestmark = pytest.mark.integration
 
 
 class City(BaseModel):
-    """Structured output small enough for a 0.6B model to fill in reliably."""
+    """Structured output small enough for a small local model to fill in reliably."""
 
     name: str
     country: str
 
 
-def test_the_tiny_model_is_installed_on_the_live_server(
+def test_the_model_is_installed_on_the_live_server(
     settings: OllamaSettings,
 ) -> None:
     assert settings.model_name in list_installed_models(settings)

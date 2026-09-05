@@ -6,10 +6,10 @@ Create a local `.env` file containing a Hugging Face token that can read the
 private dataset:
 
 ```sh
-cp .env.example .env
+echo 'HF_TOKEN=hf_your_token_here' > .env
 ```
 
-Set `HF_TOKEN` in that file, then fetch the sample data with:
+Put your real token in that file, then fetch the sample data with:
 
 ```sh
 uv run python src/data_fetching.py
@@ -24,10 +24,10 @@ Environment variables already set in the shell take precedence over `.env`.
 
 Generation runs against a local [Ollama](https://ollama.com) server through the
 [pydantic-ai](https://ai.pydantic.dev) framework. Install Ollama, then pull the
-tiny model the test suite pins:
+model the test suite pins:
 
 ```sh
-ollama pull qwen3:0.6b
+ollama pull qwen3.5:4b
 ```
 
 `src/llm/` holds the plumbing:
@@ -55,9 +55,10 @@ result = await agent.run("The conference was held in Paris, France.")
 ```
 
 `OLLAMA_BASE_URL`, `OLLAMA_MODEL` and `OLLAMA_TIMEOUT_SECONDS` override the
-defaults; see `.env.example`. Agents sample at temperature 0 so traces are
-reproducible, and any non-`str` output type is requested with schema-constrained
-decoding, which small models follow far more reliably than a tool call.
+defaults, which are defined in `src/llm/config.py`. Agents sample at
+temperature 0 so traces are reproducible, and any non-`str` output type is
+requested with schema-constrained decoding, which small models follow far
+more reliably than a tool call.
 
 ## Tests
 
@@ -68,7 +69,7 @@ uv run pytest -m "not integration" # unit tests only, no server needed
 
 `tests/unit/` is hermetic: HTTP is stubbed at the transport boundary and the
 model at pydantic-ai's `FunctionModel` seam. `tests/integration/` runs against
-the real Ollama server with the real `qwen3:0.6b`, unmocked. Those tests
+the real Ollama server with the real `qwen3.5:4b`, unmocked. Those tests
 deliberately **error rather than skip** when the server is down or the model is
 missing, so a broken local setup can never pass silently.
 

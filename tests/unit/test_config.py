@@ -9,7 +9,7 @@ def test_defaults_when_no_env_vars_are_set() -> None:
     settings = OllamaSettings.from_env(env={})
 
     assert settings.base_url == "http://localhost:11434"
-    assert settings.model_name == "qwen3:0.6b"
+    assert settings.model_name == "qwen3.5:4b"
     assert settings.timeout_seconds == 120.0
 
 

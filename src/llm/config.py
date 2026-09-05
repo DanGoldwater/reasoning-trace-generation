@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 DEFAULT_BASE_URL = "http://localhost:11434"
-DEFAULT_MODEL_NAME = "qwen3:0.6b"
+DEFAULT_MODEL_NAME = "qwen3.5:4b"
 DEFAULT_TIMEOUT_SECONDS = 120.0
 TIMEOUT_ENV_VAR = "OLLAMA_TIMEOUT_SECONDS"
 

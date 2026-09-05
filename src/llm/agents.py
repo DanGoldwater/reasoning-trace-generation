@@ -54,8 +54,8 @@ def build_agent(
     """Build an agent that produces ``output_type`` from the configured model.
 
     Anything other than plain text is requested with schema-constrained decoding:
-    a 0.6B model will happily call an output tool with a prose string, but it
-    cannot violate a schema the sampler itself enforces.
+    a small local model will happily call an output tool with a prose string,
+    but it cannot violate a schema the sampler itself enforces.
     """
     constrained: Any = str if output_type is str else NativeOutput(output_type)
     return Agent(
