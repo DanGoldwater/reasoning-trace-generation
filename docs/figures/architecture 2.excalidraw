@@ -561,7 +561,7 @@
       "x": 126.7795181274414,
       "y": 227.208984375,
       "width": 181.0302734375,
-      "height": 110,
+      "height": 85,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -577,8 +577,8 @@
         "type": 3
       },
       "seed": 886850452,
-      "version": 192,
-      "versionNonce": 2064323732,
+      "version": 195,
+      "versionNonce": 1200524716,
       "isDeleted": false,
       "boundElements": [
         {
@@ -594,7 +594,7 @@
           "type": "arrow"
         }
       ],
-      "updated": 1788628732773,
+      "updated": 1788629968940,
       "link": null,
       "locked": false
     },
@@ -604,7 +604,7 @@
       "x": 131.7795181274414,
       "y": 232.208984375,
       "width": 130.91989135742188,
-      "height": 100,
+      "height": 75,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -618,20 +618,20 @@
       "index": "ab",
       "roundness": null,
       "seed": 750006676,
-      "version": 213,
-      "versionNonce": 1533239828,
+      "version": 219,
+      "versionNonce": 1834603308,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1788628732773,
+      "updated": 1788629968940,
       "link": null,
       "locked": false,
-      "text": "No answer\nWrong answer\nNo reasoning\nError",
+      "text": "No answer\nNo reasoning\nWrong answer",
       "fontSize": 20,
       "fontFamily": 5,
       "textAlign": "left",
       "verticalAlign": "middle",
       "containerId": "9qLuSj8fqSYisqSWY9Mlp",
-      "originalText": "No answer\nWrong answer\nNo reasoning\nError",
+      "originalText": "No answer\nNo reasoning\nWrong answer",
       "autoResize": true,
       "lineHeight": 1.25
     },

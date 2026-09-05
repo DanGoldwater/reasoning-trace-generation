@@ -1,17 +1,23 @@
-# reasoning-trace-generation
+# Reasoning Trace Dataset Generation
 
 Generate and filter reasoning traces from the private biology Q&A dataset using
 Pydantic AI and a local Ollama model, with an optional Anthropic judge that
 rejects hallucinated reasoning.
 
+>[!Note] This readme is about how to get things running. Largely Claude written. Info about architecture, design decisions, etc, are in `docs/slides.md`. My intention is to use these slides in the presentation component. 
+
 ## Setup and execution
 
-Install Python 3.13+, [uv](https://docs.astral.sh/uv/), and
-[Ollama](https://ollama.com), then run:
+Install uv and Ollama:
+```sh
+brew install ollama
+brew install uv
+```
 
 ```sh
 uv sync --group dev
 ollama pull qwen3.5:4b
+ollama pull qwen3.5:9b
 ```
 
 Start Ollama (`ollama serve` if the desktop app is not running). For dataset
