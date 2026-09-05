@@ -1,9 +1,11 @@
-"""Integration tests that run against a real local Ollama server, unmocked."""
+"""Server-level checks against a real local Ollama, unmocked.
+
+Only ``live_text`` costs a model call, and it is shared; everything else here
+talks to the server's HTTP API, which is free.
+"""
 
 import pytest
-from pydantic import BaseModel
 
-from src.llm.agents import build_agent
 from src.llm.config import INTEGRATION_TEST_TIMEOUT_SECONDS, OllamaSettings
 from src.llm.health import (
     OllamaUnavailableError,
@@ -17,45 +19,8 @@ pytestmark = [
 ]
 
 
-class City(BaseModel):
-    """Structured output small enough for a small local model to fill in reliably."""
-
-    name: str
-    country: str
-
-
-def test_the_model_is_installed_on_the_live_server(
-    settings: OllamaSettings,
-) -> None:
+def test_the_model_is_installed_on_the_live_server(settings: OllamaSettings) -> None:
     assert settings.model_name in list_installed_models(settings)
-
-
-async def test_agent_generates_text_from_the_live_model(
-    settings: OllamaSettings,
-) -> None:
-    agent = build_agent(
-        settings, instructions="Answer with a single word and nothing else."
-    )
-
-    result = await agent.run("What is the capital of France?")
-
-    assert "paris" in result.output.lower()
-
-
-async def test_agent_returns_validated_structured_output_from_the_live_model(
-    settings: OllamaSettings,
-) -> None:
-    agent = build_agent(
-        settings,
-        instructions="Extract the city and the country it is in.",
-        output_type=City,
-    )
-
-    result = await agent.run("The conference was held in Paris, France.")
-
-    assert isinstance(result.output, City)
-    assert result.output.name == "Paris"
-    assert result.output.country == "France"
 
 
 def test_require_ready_rejects_a_model_that_is_not_installed(
@@ -69,3 +34,8 @@ def test_require_ready_rejects_a_model_that_is_not_installed(
         OllamaUnavailableError, match="ollama pull definitely-not-pulled:0b"
     ):
         require_ready(missing)
+
+
+def test_the_live_model_answers_an_unstructured_prompt(live_text: str) -> None:
+    """The plain-text path, which structured output bypasses entirely."""
+    assert "paris" in live_text.lower()

@@ -13,12 +13,15 @@ DEFAULT_TIMEOUT_SECONDS = 120.0
 DEFAULT_GENERATION_MAX_TOKENS = 1536
 DEFAULT_ANTHROPIC_MODEL_NAME = "claude-sonnet-4-5"
 
-# Live integration tests exercise the same agent path with a smaller member of
-# the production model family and a deliberately tight generation budget.
-INTEGRATION_MODEL_NAME = "qwen3.5:0.8b"
-INTEGRATION_REQUEST_TIMEOUT_SECONDS = 30.0
-INTEGRATION_GENERATION_MAX_TOKENS = 64
-INTEGRATION_TEST_TIMEOUT_SECONDS = 30.0
+# Live integration tests run the production model, because a smaller one is not
+# a cheaper version of it: qwen3.5:0.8b loops on dataset-shaped questions and
+# never reaches an answer, so it can only prove that the plumbing is connected.
+# The cost of the real model is paid back by calling it very few times: the
+# suite shares one answered record across many assertions.
+INTEGRATION_MODEL_NAME = DEFAULT_MODEL_NAME
+INTEGRATION_REQUEST_TIMEOUT_SECONDS = 60.0
+INTEGRATION_GENERATION_MAX_TOKENS = DEFAULT_GENERATION_MAX_TOKENS
+INTEGRATION_TEST_TIMEOUT_SECONDS = 90.0
 
 TIMEOUT_ENV_VAR = "OLLAMA_TIMEOUT_SECONDS"
 GENERATION_MAX_TOKENS_ENV_VAR = "OLLAMA_GENERATION_MAX_TOKENS"
