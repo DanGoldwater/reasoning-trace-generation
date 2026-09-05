@@ -54,7 +54,8 @@ Problems
 - Reasoning traces from the Qwen model show a _lot_ of hallucinations.
 - Often found that the model would hit token limit without supplying an answer. Increasing token limit didn't seem to help - started looping.
 - Hallucination filtering difficult without source material.
-- With 4b model, only 3/10 questions passed (without ljudge). Mostly on token limits / spiralling. 
+- With 4b model, only 3/10 questions passed (without ljudge). Mostly on token limits.
+- With 9b model, only 1/10 questions passed (without ljudge). Same reason.
 
 
 ---
