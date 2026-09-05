@@ -4,14 +4,17 @@ import pytest
 from pydantic import BaseModel
 
 from src.llm.agents import build_agent
-from src.llm.config import OllamaSettings
+from src.llm.config import INTEGRATION_TEST_TIMEOUT_SECONDS, OllamaSettings
 from src.llm.health import (
     OllamaUnavailableError,
     list_installed_models,
     require_ready,
 )
 
-pytestmark = pytest.mark.integration
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.timeout(INTEGRATION_TEST_TIMEOUT_SECONDS),
+]
 
 
 class City(BaseModel):

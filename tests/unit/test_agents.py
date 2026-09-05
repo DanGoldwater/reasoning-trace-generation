@@ -10,7 +10,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from src.llm.agents import build_agent, build_model
-from src.llm.config import OllamaSettings
+from src.llm.config import DEFAULT_GENERATION_MAX_TOKENS, OllamaSettings
 
 
 def model_settings_of(agent: Agent[None, Any]) -> Mapping[str, Any]:
@@ -154,7 +154,13 @@ def test_agent_bounds_generation_by_default() -> None:
     """
     agent = build_agent(OllamaSettings())
 
-    assert model_settings_of(agent).get("max_tokens") == 1536
+    assert model_settings_of(agent).get("max_tokens") == DEFAULT_GENERATION_MAX_TOKENS
+
+
+def test_agent_uses_the_generation_budget_from_its_settings() -> None:
+    agent = build_agent(OllamaSettings(generation_max_tokens=123))
+
+    assert model_settings_of(agent).get("max_tokens") == 123
 
 
 def test_caller_can_widen_the_reasoning_budget() -> None:

@@ -24,17 +24,18 @@ Environment variables already set in the shell take precedence over `.env`.
 
 Generation runs against a local [Ollama](https://ollama.com) server through the
 [pydantic-ai](https://ai.pydantic.dev) framework. Install Ollama, then pull the
-model the test suite pins:
+production model and the smaller integration-test model:
 
 ```sh
 ollama pull qwen3.5:4b
+ollama pull qwen3.5:0.8b
 ```
 
 `src/llm/` holds the plumbing:
 
 | Module | Purpose |
 |---|---|
-| `config.py` | `OllamaSettings` — base URL, model and timeout, read from the environment |
+| `config.py` | `OllamaSettings` — base URL, model, request timeout and generation budget |
 | `health.py` | `list_installed_models` / `require_ready` — fail early with an actionable message |
 | `agents.py` | `build_model` / `build_agent` — pydantic-ai objects wired to the local server |
 
@@ -54,8 +55,9 @@ agent = build_agent(settings, output_type=City, instructions="Extract the city."
 result = await agent.run("The conference was held in Paris, France.")
 ```
 
-`OLLAMA_BASE_URL`, `OLLAMA_MODEL` and `OLLAMA_TIMEOUT_SECONDS` override the
-defaults, which are defined in `src/llm/config.py`. Agents sample at
+`OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_SECONDS` and
+`OLLAMA_GENERATION_MAX_TOKENS` override the defaults, which are defined in
+`src/llm/config.py`. Agents sample at
 temperature 0 so traces are reproducible, and any non-`str` output type is
 requested with schema-constrained decoding, which small models follow far
 more reliably than a tool call.
@@ -69,9 +71,12 @@ uv run pytest -m "not integration" # unit tests only, no server needed
 
 `tests/unit/` is hermetic: HTTP is stubbed at the transport boundary and the
 model at pydantic-ai's `FunctionModel` seam. `tests/integration/` runs against
-the real Ollama server with the real `qwen3.5:4b`, unmocked. Those tests
-deliberately **error rather than skip** when the server is down or the model is
-missing, so a broken local setup can never pass silently.
+the real Ollama server with the real `qwen3.5:0.8b`, unmocked. It derives its
+model, request timeout and generation budget from the same `OllamaSettings`
+shape as production, with smaller values defined centrally. Each live test has
+a 30-second process timeout. Those tests deliberately **error rather than
+skip** when the server is down or the model is missing, so a broken local setup
+can never pass silently.
 
 ## Development checks
 

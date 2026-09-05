@@ -10,7 +10,8 @@ Goals:
 
 --- 
 Basic approach:
-
+- Lean hard on programmatic checks 
+- Plenty of unit + integration tests
 ---
 Inference
 
@@ -31,3 +32,13 @@ Basic architecture
 
 ---
 
+How would we improve this?
+- Constrained optimisation over hyperparameters:
+  - Max tokens
+  - System prompt
+  - Inclusion / exclusion of supporting information
+
+Could optimise for:
+- Time
+- Lval score of reasoning traces
+- Number of accepted reasoning traces 

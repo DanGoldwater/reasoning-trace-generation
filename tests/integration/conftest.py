@@ -9,18 +9,11 @@ import pytest
 from src.llm.config import OllamaSettings
 from src.llm.health import require_ready
 
-INTEGRATION_MODEL = "qwen3.5:4b"
-
 
 @pytest.fixture(scope="session")
 def settings() -> OllamaSettings:
-    """Real settings pinned to the model the integration suite expects."""
-    configured = OllamaSettings.from_env()
-    return OllamaSettings(
-        base_url=configured.base_url,
-        model_name=INTEGRATION_MODEL,
-        timeout_seconds=configured.timeout_seconds,
-    )
+    """Real settings from the centrally-defined integration profile."""
+    return OllamaSettings.integration_from_env()
 
 
 @pytest.fixture(scope="session", autouse=True)

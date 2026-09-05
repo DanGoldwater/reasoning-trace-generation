@@ -2,7 +2,13 @@
 
 import pytest
 
-from src.llm.config import OllamaSettings
+from src.llm.config import (
+    DEFAULT_GENERATION_MAX_TOKENS,
+    INTEGRATION_GENERATION_MAX_TOKENS,
+    INTEGRATION_MODEL_NAME,
+    INTEGRATION_REQUEST_TIMEOUT_SECONDS,
+    OllamaSettings,
+)
 
 
 def test_defaults_when_no_env_vars_are_set() -> None:
@@ -11,6 +17,7 @@ def test_defaults_when_no_env_vars_are_set() -> None:
     assert settings.base_url == "http://localhost:11434"
     assert settings.model_name == "qwen3.5:4b"
     assert settings.timeout_seconds == 120.0
+    assert settings.generation_max_tokens == DEFAULT_GENERATION_MAX_TOKENS
 
 
 def test_environment_variables_override_defaults() -> None:
@@ -19,12 +26,30 @@ def test_environment_variables_override_defaults() -> None:
             "OLLAMA_BASE_URL": "http://ollama.internal:9999",
             "OLLAMA_MODEL": "llama3.2:1b",
             "OLLAMA_TIMEOUT_SECONDS": "12.5",
+            "OLLAMA_GENERATION_MAX_TOKENS": "321",
         }
     )
 
     assert settings.base_url == "http://ollama.internal:9999"
     assert settings.model_name == "llama3.2:1b"
     assert settings.timeout_seconds == 12.5
+    assert settings.generation_max_tokens == 321
+
+
+def test_integration_settings_share_the_runtime_setting_names() -> None:
+    settings = OllamaSettings.integration_from_env(
+        env={
+            "OLLAMA_BASE_URL": "http://ollama.internal:9999",
+            "OLLAMA_MODEL": "ignored-by-the-integration-profile:1b",
+            "OLLAMA_TIMEOUT_SECONDS": "12.5",
+            "OLLAMA_GENERATION_MAX_TOKENS": "321",
+        }
+    )
+
+    assert settings.base_url == "http://ollama.internal:9999"
+    assert settings.model_name == INTEGRATION_MODEL_NAME
+    assert settings.timeout_seconds == INTEGRATION_REQUEST_TIMEOUT_SECONDS
+    assert settings.generation_max_tokens == INTEGRATION_GENERATION_MAX_TOKENS
 
 
 def test_openai_base_url_appends_the_v1_compatibility_path() -> None:
@@ -50,3 +75,9 @@ def test_unparseable_timeout_names_the_offending_variable() -> None:
 def test_non_positive_timeout_is_rejected() -> None:
     with pytest.raises(ValueError, match="OLLAMA_TIMEOUT_SECONDS"):
         OllamaSettings.from_env(env={"OLLAMA_TIMEOUT_SECONDS": "0"})
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "not-a-number"])
+def test_invalid_generation_budget_names_the_offending_variable(value: str) -> None:
+    with pytest.raises(ValueError, match="OLLAMA_GENERATION_MAX_TOKENS"):
+        OllamaSettings.from_env(env={"OLLAMA_GENERATION_MAX_TOKENS": value})
