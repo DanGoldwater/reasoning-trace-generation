@@ -141,17 +141,23 @@ def fig_ic50_hist(records: list[dict], theme: dict[str, str], path: Path) -> Non
     plt.close(fig)
 
 
-def fig_cell_line_balance(
-    records: list[dict], theme: dict[str, str], path: Path
-) -> None:
-    """Show outcome counts for each cell line, ordered by total coverage."""
+def cell_line_counts(
+    records: list[dict],
+) -> tuple[list[str], list[int], list[int]]:
+    """Cell lines ordered by total coverage, with their Yes and No counts."""
     counts = collections.defaultdict(collections.Counter)
     for record in records:
         metadata = record["metadata"]
         counts[metadata["cell_line"]][metadata["label"]] += 1
     names = sorted(counts, key=lambda name: sum(counts[name].values()))
-    yes = [counts[name]["Yes"] for name in names]
-    no = [counts[name]["No"] for name in names]
+    return names, [counts[n]["Yes"] for n in names], [counts[n]["No"] for n in names]
+
+
+def fig_cell_line_balance(
+    records: list[dict], theme: dict[str, str], path: Path
+) -> None:
+    """Show outcome counts for each cell line, ordered by total coverage."""
+    names, yes, no = cell_line_counts(records)
 
     fig, ax = plt.subplots(figsize=(7.2, 5.0))
     ax.barh(names, yes, height=0.62, color=theme["yes"], label="Yes", zorder=2)
@@ -165,7 +171,7 @@ def fig_cell_line_balance(
         zorder=2,
     )
     recessive(ax, theme, axis="x")
-    ax.set_xlim(0, max(yes[i] + no[i] for i in range(len(names))) * 1.13)
+    ax.set_xlim(0, max(y + n for y, n in zip(yes, no, strict=True)) * 1.13)
     ax.set_xlabel("Questions")
     ax.set_title("Every cell line has both outcomes", color=theme["primary"])
     ax.legend(frameon=False, labelcolor=theme["secondary"], loc="lower right")
@@ -174,16 +180,14 @@ def fig_cell_line_balance(
     plt.close(fig)
 
 
-def fig_coverage(records: list[dict], theme: dict[str, str], path: Path) -> None:
-    """Show source-study skew and sparse per-drug coverage."""
-    fig, (study_ax, drug_ax) = plt.subplots(1, 2, figsize=(7.6, 3.2))
-
+def study_panel(ax: Axes, records: list[dict], theme: dict[str, str]) -> None:
+    """Draw questions per source study, longest bar last, each one labelled."""
     studies = collections.Counter(record["metadata"]["study"] for record in records)
     names = [name for name, _ in studies.most_common()][::-1]
     values = [studies[name] for name in names]
-    study_ax.barh(names, values, height=0.62, color=theme["yes"], zorder=2)
+    ax.barh(names, values, height=0.62, color=theme["yes"], zorder=2)
     for y, value in enumerate(values):
-        study_ax.text(
+        ax.text(
             value + 8,
             y,
             str(value),
@@ -191,29 +195,38 @@ def fig_coverage(records: list[dict], theme: dict[str, str], path: Path) -> None
             color=theme["secondary"],
             fontsize=8.5,
         )
-    study_ax.set_xlim(0, max(values) * 1.15)
-    recessive(study_ax, theme, axis="x")
-    study_ax.set_xlabel("Questions")
-    study_ax.set_title("Questions per source study", color=theme["primary"], loc="left")
+    ax.set_xlim(0, max(values) * 1.15)
+    recessive(ax, theme, axis="x")
+    ax.set_xlabel("Questions")
+    ax.set_title("Questions per source study", color=theme["primary"], loc="left")
 
+
+def drug_panel(ax: Axes, records: list[dict], theme: dict[str, str]) -> None:
+    """Draw how many drugs are mentioned once, twice, and so on."""
     per_drug = collections.Counter(record["metadata"]["drug"] for record in records)
     frequency = collections.Counter(per_drug.values())
     counts = sorted(frequency)
-    drug_ax.bar(
+    ax.bar(
         counts,
         [frequency[count] for count in counts],
         width=0.72,
         color=theme["yes"],
         zorder=2,
     )
-    drug_ax.set_yscale("log")
-    drug_ax.set_xticks(counts)
-    drug_ax.set_xticklabels([str(count) for count in counts], rotation=45, ha="right")
-    recessive(drug_ax, theme, axis="y")
-    drug_ax.set_xlabel("Questions mentioning the drug")
-    drug_ax.set_ylabel("Distinct drugs (log scale)")
-    drug_ax.set_title("Most drugs appear once", color=theme["primary"], loc="left")
+    ax.set_yscale("log")
+    ax.set_xticks(counts)
+    ax.set_xticklabels([str(count) for count in counts], rotation=45, ha="right")
+    recessive(ax, theme, axis="y")
+    ax.set_xlabel("Questions mentioning the drug")
+    ax.set_ylabel("Distinct drugs (log scale)")
+    ax.set_title("Most drugs appear once", color=theme["primary"], loc="left")
 
+
+def fig_coverage(records: list[dict], theme: dict[str, str], path: Path) -> None:
+    """Show source-study skew and sparse per-drug coverage, side by side."""
+    fig, (study_ax, drug_ax) = plt.subplots(1, 2, figsize=(7.6, 3.2))
+    study_panel(study_ax, records, theme)
+    drug_panel(drug_ax, records, theme)
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     plt.close(fig)
