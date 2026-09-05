@@ -11,13 +11,14 @@ from typing import Literal
 import httpx
 import petname
 from pydantic import BaseModel
+from pydantic_ai import Agent
 from pydantic_ai.models import Model
 
 from src.data_fetching import load_private_dataset
 from src.dataset.loading import load_questions
 from src.dataset.models import Question, TraceRecord
 from src.dataset.runs import append_record
-from src.generation.answering import choice_type
+from src.generation.answering import Choice, choice_type
 from src.generation.attempts import GenerationAttempt, generate_attempt
 from src.llm.agents import build_agent
 from src.llm.health import require_ready
@@ -114,7 +115,8 @@ def persist_attempt(
     selected: Sequence[QualityGate],
     directory: Path,
     metadata: RunMetadata,
-) -> None:
+) -> bool:
+    """Write the attempt to the passed or failed file; True when it passed."""
     candidate = attempt.record
     failures = [attempt.failure] if attempt.failure is not None else []
     failures.extend(evaluate_gates(candidate, tuple(selected)))
@@ -132,6 +134,24 @@ def persist_attempt(
         append_record(directory / "passed.jsonl", record)
         metadata.passed += 1
     save_metadata(directory, metadata)
+    return not failures
+
+
+def build_question_agent(
+    question: Question,
+    settings: RunSettings,
+    model: Model | None,
+) -> Agent[None, Choice]:
+    """An agent constrained to this question's option keys."""
+    agent = build_agent(
+        settings.llm,
+        output_type=choice_type(question.sample.options),
+        instructions=settings.instructions,
+        temperature=settings.temperature,
+    )
+    if model is not None:
+        agent.model = model
+    return agent
 
 
 async def process_question(
@@ -141,15 +161,10 @@ async def process_question(
     model: Model | None,
     directory: Path,
     metadata: RunMetadata,
-) -> None:
-    agent = build_agent(
-        settings.llm,
-        output_type=choice_type(question.sample.options),
-        instructions=settings.instructions,
-        temperature=settings.temperature,
-    )
-    if model is not None:
-        agent.model = model
+) -> tuple[int, int]:
+    """Generate and persist every completion for one question, counting outcomes."""
+    agent = build_question_agent(question, settings, model)
+    outcomes: list[bool] = []
     for completion_id in range(settings.completions_per_question):
         attempt = await generate_attempt(
             agent,
@@ -160,7 +175,9 @@ async def process_question(
             verbose=settings.verbose_ollama
             and isinstance(settings.llm, OllamaSettings),
         )
-        persist_attempt(attempt, gates, directory, metadata)
+        outcomes.append(persist_attempt(attempt, gates, directory, metadata))
+    passed = sum(outcomes)
+    return passed, len(outcomes) - passed
 
 
 async def run_experiment(
@@ -182,14 +199,12 @@ async def run_experiment(
     try:
         for index, question in enumerate(questions, start=1):
             started = monotonic()
-            passed, failed = metadata.passed, metadata.failed
-            await process_question(
+            passed, failed = await process_question(
                 question, settings, selected, model, directory, metadata
             )
             print(
                 f"Question {index}/{len(questions)} (id={question.question_id}): "
-                f"{metadata.passed - passed} passed, {metadata.failed - failed} failed "
-                f"in {monotonic() - started:.1f}s; "
+                f"{passed} passed, {failed} failed in {monotonic() - started:.1f}s; "
                 f"total: {metadata.passed} passed, {metadata.failed} failed",
                 flush=True,
             )

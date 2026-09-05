@@ -1,6 +1,6 @@
 """Validated provider and experiment settings, independent of LLM plumbing."""
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Literal, Self
 
@@ -42,19 +42,19 @@ class ProviderSettings(BaseSettings):
             return cls()
         # Supplying every field also isolates explicit mappings from the real env.
         values = {
-            (
-                field.validation_alias
-                if isinstance(field.validation_alias, str)
-                else name
-            ): env.get(
-                field.validation_alias
-                if isinstance(field.validation_alias, str)
-                else name,
-                field.default if not field.is_required() else None,
-            )
-            for name, field in cls.model_fields.items()
+            name: env.get(name, default) for name, default in cls._declared_fields()
         }
         return cls.model_validate(values)
+
+    @classmethod
+    def _declared_fields(cls) -> Iterator[tuple[str, object]]:
+        """Every field under the name the environment knows it by, with its default."""
+        for name, field in cls.model_fields.items():
+            alias = field.validation_alias
+            yield (
+                alias if isinstance(alias, str) else name,
+                None if field.is_required() else field.default,
+            )
 
 
 class OllamaSettings(ProviderSettings):

@@ -44,7 +44,9 @@ Basic architecture
 
 ---
 Problems
-- Many of the answers are constrained to a very small range of categorical answers. 
+- Many of the answers are constrained to a very small range of categorical answers. This means a correctness gate is unlikely to provide the protection we might expect it to. 
+- Reasoning traces from the Qwen model show a *lot* of hallucinations.
+- 
 
 ---
 

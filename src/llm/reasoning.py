@@ -66,23 +66,31 @@ async def run_reasoned[OutputT](
     messages = result.all_messages()
     final = _final_response(messages)
     _reject_if_overran(final)
-
-    reasoning = "\n".join(
-        part.content for part in final.parts if isinstance(part, ThinkingPart)
-    ).strip()
-    if not reasoning and not allow_empty:
-        message = (
-            f"{final.model_name or 'The model'} answered without a reasoning "
-            "trace. Check that the model supports thinking and that thinking "
-            "is enabled."
-        )
-        raise MissingReasoningError(message)
-
     return Reasoned(
-        reasoning=reasoning,
+        reasoning=_trace_from(final, allow_empty=allow_empty),
         output=result.output,
         prompt=prompt_sent(messages),
     )
+
+
+def reasoning_from(response: ModelResponse) -> str:
+    """Every thinking part of one response, joined into a single trace."""
+    return "\n".join(
+        part.content for part in response.parts if isinstance(part, ThinkingPart)
+    ).strip()
+
+
+def _trace_from(response: ModelResponse, *, allow_empty: bool) -> str:
+    """The response's trace, or a pointed error when it did not think at all."""
+    reasoning = reasoning_from(response)
+    if reasoning or allow_empty:
+        return reasoning
+    message = (
+        f"{response.model_name or 'The model'} answered without a reasoning "
+        "trace. Check that the model supports thinking and that thinking "
+        "is enabled."
+    )
+    raise MissingReasoningError(message)
 
 
 def _reject_if_overran(response: ModelResponse) -> None:
