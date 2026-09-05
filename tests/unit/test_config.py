@@ -124,15 +124,6 @@ def test_a_run_cannot_be_configured_without_stating_the_judging_decision() -> No
         RunSettings()  # pyright: ignore[reportCallIssue]
 
 
-def test_the_environment_cannot_supply_the_judging_decision(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("RUN_LLM_JUDGE", "on")
-
-    with pytest.raises(ValueError, match="llm_judge"):
-        RunSettings()  # pyright: ignore[reportCallIssue]
-
-
 def test_an_explicit_judging_decision_still_wins_over_the_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

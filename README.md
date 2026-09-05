@@ -120,9 +120,8 @@ provider, the judge, and the experiment. Explicit values override environment
 variables, which override `.env` and defaults. Run settings use the `RUN_`
 prefix, for example `RUN_QUESTION_LIMIT=10` and `RUN_TEMPERATURE=0.3`.
 
-The one exception is the judging decision. `RUN_LLM_JUDGE` is ignored, and
-`RunSettings` cannot be constructed without `llm_judge`, so no ambient variable
-can decide judging for a run that never asked for it.
+`llm_judge` has no default: `--llm-judge on|off` is required on the command
+line, and `RunSettings` cannot be constructed without it.
 
 Judge settings live in the same file under the `JUDGE_` prefix and are saved
 into run metadata with everything else. The defaults are `claude-sonnet-5`, a
