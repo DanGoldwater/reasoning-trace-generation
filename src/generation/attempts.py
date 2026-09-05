@@ -24,7 +24,7 @@ from src.llm.reasoning import (
     reasoning_from,
     run_reasoned,
 )
-from src.quality import CandidateCompletion, CandidateRecord, GateFailure
+from src.quality import CandidateCompletion, CandidateRecord, FailureType, GateFailure
 
 # Errors that say something about this one request, so the run records them and
 # moves on to the next question.
@@ -68,7 +68,11 @@ async def generate_attempt(
             )
     except RECOVERABLE_ERRORS as error:
         _reraise_if_fatal(error)
-        attempt.failure = GateFailure(gate="generation", reason=type(error).__name__)
+        attempt.failure = GateFailure(
+            gate="generation",
+            reason=type(error).__name__,
+            failure_type=FailureType.GENERATION_ERROR,
+        )
         _salvage(attempt, messages)
     else:
         attempt.record.completion = CandidateCompletion(

@@ -50,6 +50,12 @@ Problems
 
 ---
 
+Iterating
+![ok](figures/image.png)
+
+
+--- 
+
 How would we improve this?
 - Constrained optimisation over hyperparameters:
   - Max tokens

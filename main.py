@@ -11,6 +11,12 @@ from src.settings import RunSettings
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--llm-judge",
+        choices=("on", "off"),
+        required=True,
+        help="Explicitly enable or disable the Anthropic hallucination judge.",
+    )
     parser.add_argument("--input-path", help="Cached Q&A JSON; fetched if missing.")
     parser.add_argument("--runs-dir", help="Parent directory for pet-named runs.")
     parser.add_argument(

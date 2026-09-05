@@ -20,11 +20,13 @@ from src.dataset.models import Question, TraceRecord
 from src.dataset.runs import append_record
 from src.generation.answering import Choice, choice_type
 from src.generation.attempts import GenerationAttempt, generate_attempt
+from src.judging import ReasoningHallucination
 from src.llm.agents import build_agent
 from src.llm.health import require_ready
 from src.quality import (
     CorrectAnswer,
     FailedRecord,
+    NonEmptyAnswer,
     NonEmptyReasoning,
     QualityGate,
     evaluate_gates,
@@ -67,10 +69,16 @@ def create_run_directory(root: Path) -> Path:
     raise RuntimeError("Could not allocate a unique petname for this run.")
 
 
-def select_gates(gates: Sequence[QualityGate] | None) -> tuple[QualityGate, ...]:
+def select_gates(
+    gates: Sequence[QualityGate] | None, settings: RunSettings
+) -> tuple[QualityGate, ...]:
     selected = (
-        tuple(gates) if gates is not None else (NonEmptyReasoning(), CorrectAnswer())
+        tuple(gates)
+        if gates is not None
+        else (NonEmptyAnswer(), NonEmptyReasoning(), CorrectAnswer())
     )
+    if settings.llm_judge == "on":
+        selected += (ReasoningHallucination(settings.judge),)
     names = [gate.name for gate in selected]
     if len(set(names)) != len(names):
         raise ValueError("Quality gate names must be unique.")
@@ -110,7 +118,7 @@ def initialize_run(
     return directory, metadata
 
 
-def persist_attempt(
+async def persist_attempt(
     attempt: GenerationAttempt,
     selected: Sequence[QualityGate],
     directory: Path,
@@ -119,7 +127,11 @@ def persist_attempt(
     """Write the attempt to the passed or failed file; True when it passed."""
     candidate = attempt.record
     failures = [attempt.failure] if attempt.failure is not None else []
-    failures.extend(evaluate_gates(candidate, tuple(selected)))
+    failures.extend(
+        await evaluate_gates(
+            candidate, tuple(selected), generation_complete=attempt.failure is None
+        )
+    )
     if failures:
         rejected = FailedRecord(
             record=candidate,
@@ -175,7 +187,7 @@ async def process_question(
             verbose=settings.verbose_ollama
             and isinstance(settings.llm, OllamaSettings),
         )
-        outcomes.append(persist_attempt(attempt, gates, directory, metadata))
+        outcomes.append(await persist_attempt(attempt, gates, directory, metadata))
     passed = sum(outcomes)
     return passed, len(outcomes) - passed
 
@@ -190,20 +202,28 @@ async def run_experiment(
 
     An optional model override is the external inference boundary used by tests.
     """
-    selected = select_gates(gates)
+    selected = select_gates(gates, settings)
     questions = prepare_questions(settings)
     if model is None and isinstance(settings.llm, OllamaSettings):
         with httpx.Client(timeout=settings.llm.health_timeout_seconds) as client:
             require_ready(settings.llm, client=client)
     directory, metadata = initialize_run(settings, selected)
+    print(f"Experiment {metadata.name}: {directory}", flush=True)
     try:
         for index, question in enumerate(questions, start=1):
             started = monotonic()
+            print(
+                f"[{metadata.name}] Question {index}/{len(questions)} "
+                f"(id={question.question_id}): "
+                f"generating {settings.completions_per_question}...",
+                flush=True,
+            )
             passed, failed = await process_question(
                 question, settings, selected, model, directory, metadata
             )
             print(
-                f"Question {index}/{len(questions)} (id={question.question_id}): "
+                f"[{metadata.name}] Question {index}/{len(questions)} "
+                f"(id={question.question_id}): "
                 f"{passed} passed, {failed} failed in {monotonic() - started:.1f}s; "
                 f"total: {metadata.passed} passed, {metadata.failed} failed",
                 flush=True,

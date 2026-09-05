@@ -38,6 +38,7 @@ async def test_local_question_runs_through_gates_to_disk(tmp_path: Path) -> None
     source = tmp_path / "questions.json"
     source.write_text(json.dumps([question.sample.model_dump()]), encoding="utf-8")
     run_settings = RunSettings(
+        llm_judge="off",
         input_path=source,
         runs_dir=tmp_path / "runs",
         llm=settings,
@@ -59,7 +60,11 @@ async def test_local_question_runs_through_gates_to_disk(tmp_path: Path) -> None
     metadata = json.loads((directory / "run.json").read_text())
     assert metadata["name"] == directory.name
     assert metadata["settings"] == run_settings.model_dump(mode="json")
-    assert metadata["gates"] == ["non_empty_reasoning", "correct_answer"]
+    assert metadata["gates"] == [
+        "non_empty_answer",
+        "non_empty_reasoning",
+        "correct_answer",
+    ]
     assert metadata["status"] == "completed"
     assert metadata["passed"] == 1
     assert metadata["failed"] == 0

@@ -23,7 +23,10 @@ async def test_run_persists_a_passing_record_and_metadata(tmp_path: Path) -> Non
         )
 
     settings = RunSettings(
-        input_path=source, runs_dir=tmp_path / "runs", llm=OllamaSettings()
+        llm_judge="off",
+        input_path=source,
+        runs_dir=tmp_path / "runs",
+        llm=OllamaSettings(),
     )
     directory = await run_experiment(settings, model=FunctionModel(respond))
     records = read_records(directory / "passed.jsonl")
@@ -85,7 +88,7 @@ async def test_failures_preserve_outputs_and_all_gate_names_before_next_question
         )
 
     directory = await run_experiment(
-        RunSettings(input_path=source, runs_dir=tmp_path / "runs"),
+        RunSettings(llm_judge="off", input_path=source, runs_dir=tmp_path / "runs"),
         model=FunctionModel(respond),
     )
     assert calls == 2
@@ -120,6 +123,7 @@ async def test_provider_transport_failure_is_recorded_and_run_continues(
 
     directory = await run_experiment(
         RunSettings(
+            llm_judge="off",
             input_path=source,
             runs_dir=tmp_path / "runs",
             completions_per_question=2,
@@ -151,7 +155,7 @@ async def test_truncated_output_retains_reasoning_and_answer(tmp_path: Path) -> 
         )
 
     directory = await run_experiment(
-        RunSettings(input_path=source, runs_dir=tmp_path / "runs"),
+        RunSettings(llm_judge="off", input_path=source, runs_dir=tmp_path / "runs"),
         model=FunctionModel(respond),
     )
     rejected = FailedRecord.model_validate_json(
@@ -185,7 +189,7 @@ async def test_malformed_output_is_saved_after_bounded_validation_retries(
         )
 
     directory = await run_experiment(
-        RunSettings(input_path=source, runs_dir=tmp_path / "runs"),
+        RunSettings(llm_judge="off", input_path=source, runs_dir=tmp_path / "runs"),
         model=FunctionModel(respond),
     )
     rejected = FailedRecord.model_validate_json(
@@ -197,7 +201,7 @@ async def test_malformed_output_is_saved_after_bounded_validation_retries(
     assert rejected.raw_response == "My answer is probably yes"
     assert [failure.gate for failure in rejected.failures] == [
         "generation",
-        "correct_answer",
+        "non_empty_answer",
     ]
 
 
@@ -225,6 +229,7 @@ async def test_interruption_keeps_previous_completion_and_marks_run(
     with pytest.raises(asyncio.CancelledError):
         await run_experiment(
             RunSettings(
+                llm_judge="off",
                 input_path=source,
                 runs_dir=tmp_path / "runs",
                 completions_per_question=2,
@@ -247,7 +252,9 @@ async def test_missing_data_without_token_explains_env_setup(
 
     monkeypatch.setenv("HF_TOKEN", "")
     with pytest.raises(RuntimeError, match=r"HF_TOKEN in your .env"):
-        await run_experiment(RunSettings(input_path=tmp_path / "missing.json"))
+        await run_experiment(
+            RunSettings(llm_judge="off", input_path=tmp_path / "missing.json")
+        )
 
 
 def test_run_metadata_never_contains_anthropic_credentials(tmp_path: Path) -> None:
@@ -257,6 +264,7 @@ def test_run_metadata_never_contains_anthropic_credentials(tmp_path: Path) -> No
     from src.settings import AnthropicSettings
 
     settings = RunSettings(
+        llm_judge="off",
         input_path=tmp_path / "input.json",
         llm=AnthropicSettings(api_key="test-credential"),
     )
@@ -277,14 +285,16 @@ async def test_custom_gate_and_question_limit_apply_to_each_completion(
 ) -> None:
     import json
 
-    from src.quality import CandidateRecord, FailedRecord, QualityGate
+    from src.quality import CandidateRecord, FailedRecord, GateFailure, QualityGate
 
     class MinimumTraceLength(QualityGate):
         name = "minimum_trace_length"
 
-        def check(self, record: CandidateRecord) -> str | None:
+        async def check(self, record: CandidateRecord) -> GateFailure | None:
             return (
-                "Trace is too short." if len(record.completion.reasoning) < 20 else None
+                self.reject("Trace is too short.")
+                if len(record.completion.reasoning) < 20
+                else None
             )
 
     source = tmp_path / "questions.json"
@@ -310,6 +320,7 @@ async def test_custom_gate_and_question_limit_apply_to_each_completion(
 
     directory = await run_experiment(
         RunSettings(
+            llm_judge="off",
             input_path=source,
             runs_dir=tmp_path / "runs",
             question_limit=1,
@@ -353,7 +364,7 @@ async def test_missing_dataset_is_fetched_and_then_processed(
 
     source = tmp_path / "missing.json"
     directory = await run_experiment(
-        RunSettings(input_path=source, runs_dir=tmp_path / "runs"),
+        RunSettings(llm_judge="off", input_path=source, runs_dir=tmp_path / "runs"),
         model=FunctionModel(respond),
     )
     assert source.exists()
@@ -378,6 +389,7 @@ async def test_timeout_is_recorded_without_waiting_for_remaining_generation(
 
     directory = await run_experiment(
         RunSettings(
+            llm_judge="off",
             input_path=source,
             runs_dir=tmp_path / "runs",
             llm=OllamaSettings(timeout_seconds=0.05),
@@ -408,6 +420,7 @@ async def test_progress_and_optional_full_ollama_output(
 
     await run_experiment(
         RunSettings(
+            llm_judge="off",
             input_path=source,
             runs_dir=tmp_path / "runs",
             llm=OllamaSettings(),

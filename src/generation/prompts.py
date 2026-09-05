@@ -3,9 +3,14 @@
 from src.dataset.models import HFSample
 
 ANSWER_INSTRUCTIONS = (
-    "You are answering a multiple-choice question about cancer biology and drug "
-    "response. Reason it through, then commit to exactly one option and answer "
-    "with that option's key."
+    "Answer the multiple-choice question using your existing knowledge. "
+    "Keep your reasoning brief: make one assessment, then immediately give "
+    "your final answer using exactly one offered option key. "
+    "If uncertain, acknowledge uncertainty briefly and choose the most likely "
+    "option. Do not repeatedly reconsider your decision. "
+    "You have no search tools or database access: do not simulate searches, "
+    "invent citations, or claim to have verified experimental results. "
+    "Do not repeat the question or draft multiple answers."
 )
 
 
