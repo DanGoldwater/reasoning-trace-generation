@@ -31,9 +31,11 @@ def main() -> None:
         help="Print full Ollama responses after each attempt (default: false).",
     )
     arguments = vars(parser.parse_args())
+    llm_judge = arguments.pop("llm_judge")
     try:
         settings = RunSettings(
-            **{key: value for key, value in arguments.items() if value is not None}
+            llm_judge=llm_judge,
+            **{key: value for key, value in arguments.items() if value is not None},
         )
         directory = asyncio.run(run_experiment(settings))
     except (ValueError, RuntimeError, OSError, ValidationError) as error:

@@ -9,6 +9,7 @@ from src.settings import (
     INTEGRATION_REQUEST_TIMEOUT_SECONDS,
     AnthropicSettings,
     OllamaSettings,
+    RunSettings,
     settings_from_env,
 )
 
@@ -118,3 +119,33 @@ def test_anthropic_provider_requires_an_api_key() -> None:
 def test_unknown_provider_is_rejected_with_the_setting_name() -> None:
     with pytest.raises(ValueError, match="LLM_PROVIDER"):
         settings_from_env(env={"LLM_PROVIDER": "unknown"})
+
+
+def test_a_run_cannot_be_configured_without_stating_the_judging_decision() -> None:
+    with pytest.raises(ValueError, match="llm_judge"):
+        RunSettings()  # pyright: ignore[reportCallIssue]
+
+
+def test_the_environment_cannot_supply_the_judging_decision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RUN_LLM_JUDGE", "on")
+
+    with pytest.raises(ValueError, match="llm_judge"):
+        RunSettings()  # pyright: ignore[reportCallIssue]
+
+
+def test_an_explicit_judging_decision_still_wins_over_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RUN_LLM_JUDGE", "on")
+
+    assert RunSettings(llm_judge="off").llm_judge == "off"
+
+
+def test_other_run_settings_are_still_read_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RUN_QUESTION_LIMIT", "7")
+
+    assert RunSettings(llm_judge="off").question_limit == 7

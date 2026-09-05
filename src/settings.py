@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic.fields import FieldInfo
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 from src.generation.prompts import ANSWER_INSTRUCTIONS
 
@@ -186,6 +191,36 @@ class JudgeSettings(BaseSettings):
     instructions: str = JUDGE_INSTRUCTIONS
 
 
+JUDGE_DECISION_FIELD = "llm_judge"
+
+
+class WithoutJudgingDecision(PydanticBaseSettingsSource):
+    """Wrap a settings source so it can never answer for ``llm_judge``.
+
+    Every other run setting may come from a ``RUN_`` variable, but whether to
+    judge changes what a run measures and what it costs. Stripping it here
+    means an ambient variable cannot make that call for a caller who never did.
+    """
+
+    def __init__(self, source: PydanticBaseSettingsSource) -> None:
+        super().__init__(source.settings_cls)
+        self.source = source
+
+    def get_field_value(
+        self, field: FieldInfo, field_name: str
+    ) -> tuple[object, str, bool]:
+        if field_name == JUDGE_DECISION_FIELD:
+            return None, field_name, False
+        return self.source.get_field_value(field, field_name)
+
+    def __call__(self) -> dict[str, object]:
+        return {
+            name: value
+            for name, value in self.source().items()
+            if name != JUDGE_DECISION_FIELD
+        }
+
+
 class RunSettings(BaseSettings):
     """The full experiment configuration saved directly into run metadata."""
 
@@ -207,6 +242,23 @@ class RunSettings(BaseSettings):
     )
     instructions: str = ANSWER_INSTRUCTIONS
     verbose_ollama: bool = False
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Leave every source but the judging decision working as normal."""
+        return (
+            init_settings,
+            WithoutJudgingDecision(env_settings),
+            WithoutJudgingDecision(dotenv_settings),
+            file_secret_settings,
+        )
 
     @model_validator(mode="after")
     def require_judge_credentials(self) -> Self:

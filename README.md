@@ -23,9 +23,14 @@ HF_TOKEN=hf_your_token_here
 The token must have read access to `owkin/technical_test`. Run an experiment:
 
 ```sh
-uv run python main.py --question-limit 1
-uv run python main.py --question-limit 50 --completions-per-question 2
+uv run python main.py --llm-judge off --question-limit 1
+uv run python main.py --llm-judge on --question-limit 50 --completions-per-question 2
 ```
+
+`--llm-judge on|off` is required on every run. It turns the Anthropic
+hallucination gate on or off, and there is deliberately no default: judging
+changes what a run measures and what it costs, so each run states the decision
+outright. `on` requires `ANTHROPIC_API_KEY`.
 
 The runner uses `data/private_qa.json` if it exists. Otherwise it fetches up to
 1,000 rows from Hugging Face and saves the cache before generation. A failed fetch
@@ -39,6 +44,7 @@ uv run python -m src.data_fetching
 
 Use `--input-path`, `--runs-dir`, `--question-limit`,
 `--completions-per-question`, and `--temperature` to override run defaults.
+These have defaults; `--llm-judge` does not.
 Without a limit, every cached question is processed. Question IDs are zero-based
 positions in the input file; completion IDs restart at zero for each question.
 Multiple completions at temperature zero may be identical.
@@ -100,6 +106,10 @@ Anthropic credentials are excluded from serialization and representations.
 provider, and the experiment. Explicit values override environment variables,
 which override `.env` and defaults. Run settings use the `RUN_` prefix, for
 example `RUN_QUESTION_LIMIT=10` and `RUN_TEMPERATURE=0.3`.
+
+The one exception is the judging decision. `RUN_LLM_JUDGE` is ignored, and
+`RunSettings` cannot be constructed without `llm_judge`, so no ambient variable
+can decide judging for a run that never asked for it.
 
 Ollama is the default provider. Its environment variables are `OLLAMA_BASE_URL`,
 `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_SECONDS`, and `OLLAMA_GENERATION_MAX_TOKENS`.
