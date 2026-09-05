@@ -21,7 +21,7 @@ from src.generation.answering import (
     choice_type,
 )
 from src.generation.prompts import ANSWER_INSTRUCTIONS
-from src.llm.config import OllamaSettings
+from src.settings import OllamaSettings
 
 SAMPLE = HFSample.model_validate(
     {

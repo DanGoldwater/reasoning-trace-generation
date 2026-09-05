@@ -7,7 +7,9 @@ requires-python = ">=3.13"
 dependencies = [
     "datasets>=4.0.0",
     "httpx>=0.28.1",
+    "petname>=2.9",
     "pydantic-ai-slim[anthropic,openai]>=2.40.0",
+    "pydantic-settings>=2.15.0",
     "python-dotenv>=1.1.0",
 ]
 
@@ -26,12 +28,17 @@ dev = [
 [tool.basedpyright]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
+reportExplicitAny = "error"
 
 [tool.ruff]
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "I", "B", "UP", "TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.Any".msg = "Use a concrete type, generic, or validated object boundary."
+"typing_extensions.Any".msg = "Use a concrete type, generic, or validated object boundary."
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

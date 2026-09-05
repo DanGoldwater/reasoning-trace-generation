@@ -15,12 +15,12 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from src.llm.agents import build_agent
-from src.llm.config import OllamaSettings
 from src.llm.reasoning import (
     MissingReasoningError,
     ReasoningOverranError,
     run_reasoned,
 )
+from src.settings import OllamaSettings
 
 
 class Choice(BaseModel):

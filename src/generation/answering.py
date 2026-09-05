@@ -1,16 +1,15 @@
 """Putting one question to a model and recording what came back."""
 
 from collections.abc import Iterable
-from typing import Any, Literal, cast
 
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, Field, field_validator
 from pydantic_ai import Agent
 
 from src.dataset.models import Completion, HFSample, Prompting, Question, TraceRecord
 from src.generation.prompts import ANSWER_INSTRUCTIONS, render_question
 from src.llm.agents import build_agent
-from src.llm.config import LLMSettings
 from src.llm.reasoning import run_reasoned
+from src.settings import LLMSettings
 
 
 class Choice(BaseModel):
@@ -27,8 +26,18 @@ def choice_type(option_keys: Iterable[str]) -> type[Choice]:
     of merely discouraged.
     """
     keys = tuple(sorted(option_keys))
-    literal_type = cast(Any, Literal)[keys]
-    return create_model("Choice", __base__=Choice, answer=(literal_type, ...))
+
+    class AllowedChoice(Choice):
+        answer: str = Field(json_schema_extra={"enum": list(keys)})
+
+        @field_validator("answer")
+        @classmethod
+        def offered_option(cls, value: str) -> str:
+            if value not in keys:
+                raise ValueError("answer must be an offered option")
+            return value
+
+    return AllowedChoice
 
 
 def build_answering_agent(

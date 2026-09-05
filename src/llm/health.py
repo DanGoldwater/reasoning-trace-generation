@@ -5,7 +5,7 @@ from collections.abc import Iterator
 
 import httpx
 
-from src.llm.config import OllamaSettings
+from src.settings import OllamaSettings
 
 
 class OllamaUnavailableError(RuntimeError):

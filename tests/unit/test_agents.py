@@ -1,7 +1,6 @@
 """Unit tests for the pydantic-ai model and agent factories."""
 
 from collections.abc import Mapping
-from typing import Any
 
 from pydantic import BaseModel
 from pydantic_ai import Agent
@@ -11,14 +10,14 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from src.llm.agents import build_agent, build_model
-from src.llm.config import (
+from src.settings import (
     DEFAULT_GENERATION_MAX_TOKENS,
     AnthropicSettings,
     OllamaSettings,
 )
 
 
-def model_settings_of(agent: Agent[None, Any]) -> Mapping[str, Any]:
+def model_settings_of[OutputT](agent: Agent[None, OutputT]) -> Mapping[str, object]:
     """Read back the settings the factory baked into an agent."""
     settings = agent.model_settings
     assert settings is not None

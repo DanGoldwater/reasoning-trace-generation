@@ -5,12 +5,12 @@ from collections.abc import Callable
 import httpx
 import pytest
 
-from src.llm.config import OllamaSettings
 from src.llm.health import (
     OllamaUnavailableError,
     list_installed_models,
     require_ready,
 )
+from src.settings import OllamaSettings
 
 SETTINGS = OllamaSettings(base_url="http://localhost:11434", model_name="qwen3:0.6b")
 

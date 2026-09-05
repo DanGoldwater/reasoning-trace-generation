@@ -1,125 +1,201 @@
 # reasoning-trace-generation
 
-## Dataset access
+Generate and filter reasoning traces from the private biology Q&A dataset using
+Pydantic AI and a local Ollama model.
 
-Create a local `.env` file containing a Hugging Face token that can read the
-private dataset:
+## Setup and execution
 
-```sh
-echo 'HF_TOKEN=hf_your_token_here' > .env
-```
-
-Put your real token in that file, then fetch the sample data with:
-
-```sh
-uv run python src/data_fetching.py
-```
-
-The first 50 records are saved to `./data/private_qa.json`. The `data/`
-directory is intentionally ignored by Git because it may contain private data.
-
-Environment variables already set in the shell take precedence over `.env`.
-
-## LLM providers
-
-Generation always runs through [Pydantic AI](https://ai.pydantic.dev), which
-provides one `build_model` / `build_agent` interface over a local
-[Ollama](https://ollama.com) server and the native Anthropic API. Ollama is the
-default, so the existing local workflow remains unchanged. Install Ollama, then
-pull the model used for both production and the integration test:
-
-```sh
-ollama pull qwen3.5:4b
-```
-
-`src/llm/` holds the plumbing:
-
-| Module | Purpose |
-|---|---|
-| `config.py` | provider settings and `settings_from_env` — read from the environment |
-| `health.py` | `list_installed_models` / `require_ready` — fail early with an actionable message |
-| `agents.py` | `build_model` / `build_agent` — pydantic-ai objects wired to the local server |
-
-```python
-from pydantic import BaseModel
-
-from src.llm import build_agent, settings_from_env
-
-class City(BaseModel):
-    name: str
-    country: str
-
-settings = settings_from_env()
-
-agent = build_agent(settings, output_type=City, instructions="Extract the city.")
-result = await agent.run("The conference was held in Paris, France.")
-```
-
-For Ollama, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_SECONDS` and
-`OLLAMA_GENERATION_MAX_TOKENS` override the defaults in `src/llm/config.py`.
-For Anthropic, set these in `.env` (or in the shell):
-
-```sh
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=your_api_key
-ANTHROPIC_MODEL=claude-sonnet-4-5  # optional
-```
-
-`ANTHROPIC_TIMEOUT_SECONDS` and `ANTHROPIC_GENERATION_MAX_TOKENS` optionally
-override the corresponding Anthropic defaults. `.env` is loaded without
-overwriting values already present in the shell. Agents sample at temperature 0
-so traces are reproducible, and any non-`str` output type is requested with
-schema-constrained decoding, which small models follow far more reliably than a
-tool call.
-
-## Tests
-
-```sh
-uv run pytest                      # everything
-uv run pytest -m integration        # one live question-to-record smoke test
-uv run pytest -m "not integration" # unit tests only, no server needed
-```
-
-`tests/unit/` is hermetic: HTTP is stubbed at the transport boundary and the
-model at pydantic-ai's `FunctionModel` seam. These tests cover our configuration,
-record assembly, validation, reasoning extraction and file handling, with a
-10-second timeout per test.
-
-`tests/integration/` contains one live smoke test against `qwen3.5:4b`. It sends
-an unambiguous, dataset-shaped question through the production answering path
-and checks that the returned object contains the expected allowed answer label,
-nonempty reasoning, question identity and prompt, and can round-trip through
-JSON. It tests the output contract, not biomedical accuracy or reasoning quality.
-It makes one agent run; Pydantic AI may retry invalid output within that run.
-
-The integration profile pins the production model and 1,536-token budget in
-`src/llm/config.py`, while taking the server address from `OLLAMA_BASE_URL`.
-Readiness has a 5-second HTTP timeout, the whole generation has a 60-second
-async deadline (including retries), and pytest enforces a 90-second limit on
-the entire live test. Missing Ollama or a missing model fails rather than skips.
-
-## Development checks
-
-Install the development tools and Git hook:
+Install Python 3.13+, [uv](https://docs.astral.sh/uv/), and
+[Ollama](https://ollama.com), then run:
 
 ```sh
 uv sync --group dev
+ollama pull qwen3.5:4b
+```
+
+Start Ollama (`ollama serve` if the desktop app is not running). For dataset
+access, create `.env` in the repository root:
+
+```dotenv
+HF_TOKEN=hf_your_token_here
+```
+
+The token must have read access to `owkin/technical_test`. Run an experiment:
+
+```sh
+uv run python main.py --question-limit 1
+uv run python main.py --question-limit 50 --completions-per-question 2
+```
+
+The runner uses `data/private_qa.json` if it exists. Otherwise it fetches up to
+1,000 rows from Hugging Face and saves the cache before generation. A failed fetch
+reports the need to set `HF_TOKEN` in `.env` and check access/connectivity. An
+existing but invalid input file produces a validation error; it is not replaced.
+To fetch explicitly:
+
+```sh
+uv run python -m src.data_fetching
+```
+
+Use `--input-path`, `--runs-dir`, `--question-limit`,
+`--completions-per-question`, and `--temperature` to override run defaults.
+Without a limit, every cached question is processed. Question IDs are zero-based
+positions in the input file; completion IDs restart at zero for each question.
+Multiple completions at temperature zero may be identical.
+
+## Run artifacts
+
+Each run gets a unique three-word petname and a new directory:
+
+```text
+data/runs/<petname>/
+    passed.jsonl
+    failed.jsonl
+    run.json
+```
+
+The processing loop is question → generation → all gates → disk, repeated for
+each completion. Each JSONL append is closed before the next generation begins;
+metadata is then replaced atomically. Ctrl-C preserves completed records and
+marks the run interrupted. A hard kill can leave metadata marked running or its
+counts one record behind; JSONL files are the source of truth. This prototype
+does not resume runs or guarantee persistence through a power failure.
+
+Passing rows match the assignment schema exactly:
+
+```json
+{
+  "question_id": 0,
+  "completion_id": 0,
+  "hf_sample": {
+    "question": "According to the screen, is this cell line sensitive?",
+    "answer": "B",
+    "options": {"A": "No", "B": "Yes"}
+  },
+  "completion": {
+    "reasoning": "The screen reports sensitivity, so the answer is yes.",
+    "answer": "B"
+  },
+  "prompting": {
+    "full_prompt": "[instructions and question sent to the model]"
+  }
+}
+```
+
+Failed rows contain `record` (the same nested fields), `failures` (a list of
+`{"gate": "...", "reason": "..."}` objects), and `raw_response` when generation
+failed. Missing answers are `null`; missing reasoning is an empty string. This
+preserves incorrect answers and partial traces for error analysis. Only the final
+model response is associated with an answer; reasoning from a discarded
+validation retry is never attached to a later successful answer.
+
+`run.json` records the complete validated settings, enabled gate names, source
+file SHA-256, timestamps, status, and accepted/rejected counts. Settings are dumped
+directly, so new configuration fields automatically appear in metadata.
+Anthropic credentials are excluded from serialization and representations.
+
+## Configuration and design
+
+`src/settings.py` owns Pydantic Settings models for provider selection, each
+provider, and the experiment. Explicit values override environment variables,
+which override `.env` and defaults. Run settings use the `RUN_` prefix, for
+example `RUN_QUESTION_LIMIT=10` and `RUN_TEMPERATURE=0.3`.
+
+Ollama is the default provider. Its environment variables are `OLLAMA_BASE_URL`,
+`OLLAMA_MODEL`, `OLLAMA_TIMEOUT_SECONDS`, and `OLLAMA_GENERATION_MAX_TOKENS`.
+Defaults are `http://localhost:11434`, `qwen3.5:4b`, 120 seconds per completion
+(including validation retries), and 1,536 tokens including thinking.
+
+The existing native Anthropic path remains available for comparison experiments:
+
+```dotenv
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your_api_key
+ANTHROPIC_MODEL=claude-sonnet-4-5
+```
+
+`ANTHROPIC_TIMEOUT_SECONDS` and `ANTHROPIC_GENERATION_MAX_TOKENS` override the
+same default budgets. Use Ollama for the assignment's local-model requirement.
+
+The code separates the main responsibilities:
+
+| Module | Responsibility |
+|---|---|
+| `src/settings.py` | Validate settings and load environment values |
+| `src/dataset/` | Validate source/accepted records and read/write data |
+| `src/llm/` | Build provider-neutral agents, check readiness, capture reasoning |
+| `src/generation/` | Prompting, option-constrained answers, recover failed attempts |
+| `src/quality.py` | Candidate/failure models and extensible quality gates |
+| `src/experiments.py` | Sequential orchestration and run metadata |
+
+Pydantic models validate external data, settings, and persisted artifacts. The
+answer model adds each question's allowed keys to its JSON schema and validates
+them at runtime, without dynamic `Literal` construction or casts. The internal
+generic reasoning result stays a small immutable dataclass.
+
+## Filtering and model trade-offs
+
+Both default gates run for every candidate:
+
+- `non_empty_reasoning`: reject missing or whitespace-only reasoning.
+- `correct_answer`: require exact equality with the ground-truth option key.
+
+Malformed answers, truncated generation, timeouts, and provider connection errors
+also produce a `generation` failure and the run continues. Authentication and
+missing-model errors stop the run; Ollama readiness is checked before creating a
+run directory. Disk errors and unexpected programming errors stop the run too.
+Pydantic AI can retry malformed structured output once within each completion's
+deadline; quality-gate failures do not trigger regeneration.
+
+To extend filtering, subclass `QualityGate`, give it a unique `name`, and implement
+`check(record) -> str | None`: return a rejection reason or `None` to accept.
+Supply gates through `run_experiment(settings, gates=[...])`; this explicit list
+replaces the defaults, so include `NonEmptyReasoning()` and `CorrectAnswer()` when
+adding another check. Metadata records the supplied names, and failures retain
+all applicable rejection reasons.
+
+These gates establish output usability and answer agreement, not scientific
+correctness of the reasoning. A model can guess the right answer and justify it
+poorly; a mislabeled source answer can also reject a sound response. The gold
+answer is never placed in the generation prompt. A later gate could inspect
+unsupported claims or use a separate verifier, at an additional inference cost.
+
+The 4B model is a pragmatic size for the assignment's consumer-laptop budget.
+A smaller model reduces memory and latency but has less capacity for specialist
+biology reasoning; a larger model can improve capacity at greater memory and
+inference cost. Schema-constrained answers reduce formatting failures but do not
+correct scientific mistakes. The token cap bounds cost and catches truncated
+thinking, at the risk of rejecting questions needing longer reasoning. Sequential
+execution limits concurrent memory pressure. Temperature zero reduces sampling
+variation but is not a guarantee of reproducibility across model/runtime changes.
+
+## Tests and checks
+
+```sh
+uv run pytest
+uv run pytest -m integration
+uv run pytest -m "not integration"
+uv run pre-commit run --all-files
 uv run pre-commit install
 ```
 
-Run every check manually, including Gitleaks secret detection:
+The single live integration test runs one synthetic, dataset-shaped question
+through the production runner and both gates into a temporary run directory. It
+asserts the exact artifact layout, IDs, answer, reasoning, prompt, metadata,
+counts, input identity, and JSON round-trip. It uses `qwen3.5:4b` with a 1,536-token
+budget, a 60-second completion deadline, and a 90-second test timeout. Missing
+Ollama or its model fails rather than skips. The test verifies the pipeline
+contract, not biomedical accuracy. No extra live queries exercise rejection paths.
 
-```sh
-uv run pre-commit run --all-files
-```
+Unit tests use Pydantic AI's `FunctionModel` at the inference boundary and real
+temporary files. They cover failures, incremental writes, interruption, custom
+gates, fetching, and configuration without contacting a model provider.
 
-The hook runs Gitleaks secret detection, Ruff linting and formatting, and
-basedpyright and ty type checking. Ruff and basedpyright are configured in
-`pyproject.toml`; ty uses the project's `requires-python` setting.
+Pre-commit runs Gitleaks, Ruff lint/format, basedpyright, and ty. Explicit `Any`
+is banned across source and tests by basedpyright's
+[`reportExplicitAny`](https://docs.basedpyright.com/latest/benefits-over-pyright/new-diagnostic-rules/#reportexplicitany)
+and Ruff's banned imports. Third-party inferred types are not globally banned;
+our data boundaries validate them into concrete models.
 
-To scan the full Git history (for example, before publishing the repository),
-install the Gitleaks CLI and run:
-
-```sh
-gitleaks git --redact
-```
+The `data/` directory and `.env` are ignored by Git. To scan Git history before
+publishing, install Gitleaks and run `gitleaks git --redact`.

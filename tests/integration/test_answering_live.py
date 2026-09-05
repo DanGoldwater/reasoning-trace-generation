@@ -1,14 +1,15 @@
 """One live smoke test of the question-to-record contract, using production code."""
 
-import asyncio
+import hashlib
+import json
+from pathlib import Path
 
-import httpx
 import pytest
 
 from src.dataset.models import HFSample, Question, TraceRecord
-from src.generation.answering import answer_question, build_answering_agent
-from src.llm.config import INTEGRATION_TEST_TIMEOUT_SECONDS, OllamaSettings
-from src.llm.health import require_ready
+from src.dataset.runs import read_records
+from src.experiments import run_experiment
+from src.settings import INTEGRATION_TEST_TIMEOUT_SECONDS, OllamaSettings, RunSettings
 
 pytestmark = [
     pytest.mark.integration,
@@ -16,11 +17,11 @@ pytestmark = [
 ]
 
 
-async def test_local_question_returns_a_structured_answer_and_reasoning() -> None:
+async def test_local_question_runs_through_gates_to_disk(tmp_path: Path) -> None:
     # Keep the dataset's JSON-encoded options, but supply the fact needed to
     # answer. This tests our output contract, not biomedical knowledge or recall.
     question = Question(
-        question_id=42,
+        question_id=0,
         sample=HFSample.model_validate(
             {
                 "question": (
@@ -34,19 +35,41 @@ async def test_local_question_returns_a_structured_answer_and_reasoning() -> Non
         ),
     )
     settings = OllamaSettings.integration_from_env()
-    # Readiness is cheap and should fail promptly with setup instructions.
-    with httpx.Client(timeout=5.0) as client:
-        require_ready(settings, client=client)
-
-    agent = build_answering_agent(settings, question.sample)
-    # Bound the entire run, including any validation retries, not just each
-    # HTTP request. The pytest deadline also covers setup and synchronous code.
-    async with asyncio.timeout(settings.timeout_seconds):
-        record = await answer_question(agent, question, completion_id=3)
+    source = tmp_path / "questions.json"
+    source.write_text(json.dumps([question.sample.model_dump()]), encoding="utf-8")
+    run_settings = RunSettings(
+        input_path=source,
+        runs_dir=tmp_path / "runs",
+        llm=settings,
+        question_limit=1,
+        completions_per_question=1,
+    )
+    directory = await run_experiment(run_settings)
+    records = read_records(directory / "passed.jsonl")
+    assert len(records) == 1, (directory / "failed.jsonl").read_text()
+    record = records[0]
+    assert directory.parent == tmp_path / "runs"
+    assert len(directory.name.split("-")) == 3
+    assert {path.name for path in directory.iterdir()} == {
+        "passed.jsonl",
+        "failed.jsonl",
+        "run.json",
+    }
+    assert (directory / "failed.jsonl").read_text() == ""
+    metadata = json.loads((directory / "run.json").read_text())
+    assert metadata["name"] == directory.name
+    assert metadata["settings"] == run_settings.model_dump(mode="json")
+    assert metadata["gates"] == ["non_empty_reasoning", "correct_answer"]
+    assert metadata["status"] == "completed"
+    assert metadata["passed"] == 1
+    assert metadata["failed"] == 0
+    assert metadata["finished_at"] >= metadata["started_at"]
+    assert metadata["input_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert "api_key" not in metadata["settings"]["llm"]
 
     assert isinstance(record, TraceRecord)
     assert record.question_id == question.question_id
-    assert record.completion_id == 3
+    assert record.completion_id == 0
     assert record.hf_sample == question.sample
     assert record.completion.answer in question.sample.options
     assert record.completion.answer == "B"

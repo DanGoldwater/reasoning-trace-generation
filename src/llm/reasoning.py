@@ -37,8 +37,13 @@ class Reasoned[OutputT]:
 async def run_reasoned[OutputT](
     agent: Agent[None, OutputT],
     user_prompt: str,
+    *,
+    allow_empty: bool = False,
+    audit_messages: list[ModelMessage] | None = None,
 ) -> Reasoned[OutputT]:
     """Run ``agent`` and return its reasoning trace alongside its typed output.
+
+    The optional audit list receives the exchange even on failure.
 
     Only the final response's thinking is kept. A malformed attempt that
     pydantic-ai retried was argued towards an answer that was thrown away, so
@@ -54,6 +59,9 @@ async def run_reasoned[OutputT](
             # itself, because calling it an overrun would misdirect the reader.
             _reject_if_overran(_final_response(captured))
             raise
+        finally:
+            if audit_messages is not None:
+                audit_messages.extend(captured)
 
     messages = result.all_messages()
     final = _final_response(messages)
@@ -62,7 +70,7 @@ async def run_reasoned[OutputT](
     reasoning = "\n".join(
         part.content for part in final.parts if isinstance(part, ThinkingPart)
     ).strip()
-    if not reasoning:
+    if not reasoning and not allow_empty:
         message = (
             f"{final.model_name or 'The model'} answered without a reasoning "
             "trace. Check that the model supports thinking and that thinking "
@@ -73,7 +81,7 @@ async def run_reasoned[OutputT](
     return Reasoned(
         reasoning=reasoning,
         output=result.output,
-        prompt=_prompt_sent(messages),
+        prompt=prompt_sent(messages),
     )
 
 
@@ -100,7 +108,7 @@ def _final_response(messages: list[ModelMessage]) -> ModelResponse:
     raise MissingReasoningError(error)
 
 
-def _prompt_sent(messages: list[ModelMessage]) -> str:
+def prompt_sent(messages: list[ModelMessage]) -> str:
     """The instructions and question as they went out, read back off the request.
 
     Deriving this from the request rather than from the caller's arguments keeps

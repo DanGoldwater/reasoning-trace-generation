@@ -3,10 +3,11 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
 
 from datasets import load_dataset
 from dotenv import load_dotenv
+
+from src.dataset.models import HFSample
 
 PRIVATE_REPO = "owkin/technical_test"
 DEFAULT_OUTPUT_PATH = Path("data/private_qa.json")
@@ -15,7 +16,7 @@ DEFAULT_OUTPUT_PATH = Path("data/private_qa.json")
 def load_private_dataset(
     max_samples: int = 1000,
     output_path: Path = DEFAULT_OUTPUT_PATH,
-) -> list[dict[str, Any]]:
+) -> list[HFSample]:
     """Load Q&A records and save up to ``max_samples`` as JSON."""
     load_dotenv()
 
@@ -26,11 +27,17 @@ def load_private_dataset(
 
     dataset = load_dataset(PRIVATE_REPO, token=token, split="train")
     sample_count = min(max_samples, len(dataset))
-    samples = [dict(sample) for sample in dataset.select(range(sample_count))]
+    samples = [
+        HFSample.model_validate(sample)
+        for sample in dataset.select(range(sample_count))
+    ]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(samples, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(
+            [sample.model_dump() for sample in samples], ensure_ascii=False, indent=2
+        )
+        + "\n",
         encoding="utf-8",
     )
     return samples

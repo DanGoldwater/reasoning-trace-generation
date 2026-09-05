@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.llm.config import (
+from src.settings import (
     DEFAULT_GENERATION_MAX_TOKENS,
     INTEGRATION_GENERATION_MAX_TOKENS,
     INTEGRATION_MODEL_NAME,

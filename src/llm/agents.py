@@ -1,6 +1,6 @@
 """Factories for provider-neutral pydantic-ai agents."""
 
-from typing import Any, overload
+from typing import overload
 
 from openai import AsyncOpenAI
 from pydantic_ai import Agent, NativeOutput
@@ -11,7 +11,7 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.settings import ModelSettings
 
-from src.llm.config import (
+from src.settings import (
     DEFAULT_GENERATION_MAX_TOKENS,
     AnthropicSettings,
     LLMSettings,
@@ -91,14 +91,14 @@ def build_agent[OutputT](
 ) -> Agent[None, OutputT]: ...
 
 
-def build_agent(
+def build_agent[OutputT](
     settings: LLMSettings,
     *,
-    output_type: type[Any] = str,
+    output_type: type[OutputT] | type[str] = str,
     instructions: str | None = None,
     temperature: float = DETERMINISTIC_TEMPERATURE,
     max_tokens: int | None = None,
-) -> Agent[None, Any]:
+) -> Agent[None, OutputT | str]:
     """Build an agent that produces ``output_type`` from the configured model.
 
     Anything other than plain text is requested with schema-constrained decoding:
@@ -108,7 +108,9 @@ def build_agent(
     ``max_tokens`` overrides the setting for exceptional calls. By default the
     generation budget, including the model's thinking, comes from ``settings``.
     """
-    constrained: Any = str if output_type is str else NativeOutput(output_type)
+    constrained = (
+        NativeOutput[OutputT | str](output_type) if output_type is not str else str
+    )
     return Agent(
         build_model(settings),
         output_type=constrained,

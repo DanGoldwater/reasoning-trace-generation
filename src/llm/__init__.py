@@ -1,14 +1,14 @@
 """Pydantic AI plumbing for Ollama and Anthropic."""
 
 from src.llm.agents import build_agent, build_model
-from src.llm.config import (
+from src.llm.health import OllamaUnavailableError, list_installed_models, require_ready
+from src.llm.reasoning import MissingReasoningError, Reasoned, run_reasoned
+from src.settings import (
     AnthropicSettings,
     LLMSettings,
     OllamaSettings,
     settings_from_env,
 )
-from src.llm.health import OllamaUnavailableError, list_installed_models, require_ready
-from src.llm.reasoning import MissingReasoningError, Reasoned, run_reasoned
 
 __all__ = [
     "MissingReasoningError",

@@ -1,7 +1,6 @@
 """The record schema this pipeline reads in and writes out."""
 
 import json
-from typing import Any
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -15,7 +14,7 @@ class HFSample(BaseModel):
 
     @field_validator("options", mode="before")
     @classmethod
-    def _parse_json_options(cls, value: Any) -> Any:
+    def _parse_json_options(cls, value: object) -> object:
         """Accept the JSON-encoded options string the HF rows actually carry."""
         if isinstance(value, str):
             return json.loads(value)
