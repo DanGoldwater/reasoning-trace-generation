@@ -6,11 +6,16 @@ from typing import Any
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart
+from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from src.llm.agents import build_agent, build_model
-from src.llm.config import DEFAULT_GENERATION_MAX_TOKENS, OllamaSettings
+from src.llm.config import (
+    DEFAULT_GENERATION_MAX_TOKENS,
+    AnthropicSettings,
+    OllamaSettings,
+)
 
 
 def model_settings_of(agent: Agent[None, Any]) -> Mapping[str, Any]:
@@ -31,6 +36,29 @@ def test_model_is_pointed_at_the_configured_ollama_server() -> None:
     assert model.model_name == "gemma3:1b"
     assert model.base_url.rstrip("/") == "http://ollama.internal:9999/v1"
     assert model.system == "ollama"
+
+
+def test_model_is_pointed_at_anthropic_without_making_a_request() -> None:
+    model = build_model(
+        AnthropicSettings(api_key="test-key", model_name="claude-sonnet-4-5")
+    )
+
+    assert isinstance(model, AnthropicModel)
+    assert model.model_name == "claude-sonnet-4-5"
+    assert model.system == "anthropic"
+
+
+async def test_anthropic_agent_uses_the_same_pydantic_ai_override_seam() -> None:
+    """The provider is never contacted when a test supplies a FunctionModel."""
+    agent = build_agent(AnthropicSettings(api_key="test-key"))
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[TextPart("ok")])
+
+    with agent.override(model=FunctionModel(respond)):
+        result = await agent.run("Hello?")
+
+    assert result.output == "ok"
 
 
 def test_agent_uses_the_configured_model_and_timeout() -> None:
@@ -167,3 +195,16 @@ def test_caller_can_widen_the_reasoning_budget() -> None:
     agent = build_agent(OllamaSettings(), max_tokens=4096)
 
     assert model_settings_of(agent).get("max_tokens") == 4096
+
+
+def test_the_ollama_budget_is_sent_in_the_field_ollama_actually_reads() -> None:
+    """Ollama honours ``max_tokens`` and silently ignores ``max_completion_tokens``.
+
+    pydantic-ai picks between those two fields from this profile flag, and its
+    default sends the one Ollama ignores — which leaves the budget above
+    decorative, and lets a small model think until the request times out.
+    """
+    profile = build_model(OllamaSettings()).profile
+
+    assert profile is not None
+    assert profile.get("openai_chat_supports_max_completion_tokens") is False

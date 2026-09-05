@@ -1,13 +1,21 @@
-"""Factories for pydantic-ai agents backed by a local Ollama server."""
+"""Factories for provider-neutral pydantic-ai agents."""
 
 from typing import Any, overload
 
 from pydantic_ai import Agent, NativeOutput
+from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.profiles.openai import OpenAIModelProfile
+from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.settings import ModelSettings
 
-from src.llm.config import OllamaSettings
+from src.llm.config import (
+    DEFAULT_GENERATION_MAX_TOKENS,
+    AnthropicSettings,
+    LLMSettings,
+    OllamaSettings,
+)
 
 # Ollama ignores the key, but the OpenAI-compatible client insists on one.
 PLACEHOLDER_API_KEY = "ollama"
@@ -15,19 +23,47 @@ PLACEHOLDER_API_KEY = "ollama"
 # Reasoning traces are only comparable across runs if sampling is deterministic.
 DETERMINISTIC_TEMPERATURE = 0.0
 
+# pydantic-ai defaults to sending the generation budget as
+# `max_completion_tokens`, which Ollama accepts and silently ignores; Ollama
+# reads `max_tokens`. Without this the budget never leaves the process, and a
+# small model can think until the request times out. pydantic-ai's own
+# OpenRouter and Azure providers set this flag; its Ollama provider does not.
+OLLAMA_PROFILE_OVERRIDES = OpenAIModelProfile(
+    openai_chat_supports_max_completion_tokens=False
+)
 
-def build_model(settings: OllamaSettings) -> OpenAIChatModel:
-    """Build a pydantic-ai model that talks to the configured Ollama server."""
-    provider = OllamaProvider(
-        base_url=settings.openai_base_url,
-        api_key=PLACEHOLDER_API_KEY,
-    )
-    return OpenAIChatModel(settings.model_name, provider=provider)
+# Kept as a public alias while generation limits move into provider settings.
+DEFAULT_MAX_TOKENS = DEFAULT_GENERATION_MAX_TOKENS
+
+
+@overload
+def build_model(settings: OllamaSettings) -> OpenAIChatModel: ...
+
+
+@overload
+def build_model(settings: AnthropicSettings) -> AnthropicModel: ...
+
+
+def build_model(settings: LLMSettings) -> OpenAIChatModel | AnthropicModel:
+    """Build the Pydantic AI model for the selected provider."""
+    if isinstance(settings, OllamaSettings):
+        provider = OllamaProvider(
+            base_url=settings.openai_base_url,
+            api_key=PLACEHOLDER_API_KEY,
+        )
+        return OpenAIChatModel(
+            settings.model_name,
+            provider=provider,
+            profile=OLLAMA_PROFILE_OVERRIDES,
+        )
+
+    provider = AnthropicProvider(api_key=settings.api_key)
+    return AnthropicModel(settings.model_name, provider=provider)
 
 
 @overload
 def build_agent(
-    settings: OllamaSettings,
+    settings: LLMSettings,
     *,
     instructions: str | None = None,
     temperature: float = DETERMINISTIC_TEMPERATURE,
@@ -37,7 +73,7 @@ def build_agent(
 
 @overload
 def build_agent[OutputT](
-    settings: OllamaSettings,
+    settings: LLMSettings,
     *,
     output_type: type[OutputT],
     instructions: str | None = None,
@@ -47,7 +83,7 @@ def build_agent[OutputT](
 
 
 def build_agent(
-    settings: OllamaSettings,
+    settings: LLMSettings,
     *,
     output_type: type[Any] = str,
     instructions: str | None = None,

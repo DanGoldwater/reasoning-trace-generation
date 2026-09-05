@@ -20,11 +20,13 @@ directory is intentionally ignored by Git because it may contain private data.
 
 Environment variables already set in the shell take precedence over `.env`.
 
-## Local LLM
+## LLM providers
 
-Generation runs against a local [Ollama](https://ollama.com) server through the
-[pydantic-ai](https://ai.pydantic.dev) framework. Install Ollama, then pull the
-production model and the smaller integration-test model:
+Generation always runs through [Pydantic AI](https://ai.pydantic.dev), which
+provides one `build_model` / `build_agent` interface over a local
+[Ollama](https://ollama.com) server and the native Anthropic API. Ollama is the
+default, so the existing local workflow remains unchanged. Install Ollama, then
+pull the production model and the smaller integration-test model:
 
 ```sh
 ollama pull qwen3.5:4b
@@ -35,32 +37,41 @@ ollama pull qwen3.5:0.8b
 
 | Module | Purpose |
 |---|---|
-| `config.py` | `OllamaSettings` — base URL, model, request timeout and generation budget |
+| `config.py` | provider settings and `settings_from_env` — read from the environment |
 | `health.py` | `list_installed_models` / `require_ready` — fail early with an actionable message |
 | `agents.py` | `build_model` / `build_agent` — pydantic-ai objects wired to the local server |
 
 ```python
 from pydantic import BaseModel
 
-from src.llm import OllamaSettings, build_agent, require_ready
+from src.llm import build_agent, settings_from_env
 
 class City(BaseModel):
     name: str
     country: str
 
-settings = OllamaSettings.from_env()
-require_ready(settings)
+settings = settings_from_env()
 
 agent = build_agent(settings, output_type=City, instructions="Extract the city.")
 result = await agent.run("The conference was held in Paris, France.")
 ```
 
-`OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_SECONDS` and
-`OLLAMA_GENERATION_MAX_TOKENS` override the defaults, which are defined in
-`src/llm/config.py`. Agents sample at
-temperature 0 so traces are reproducible, and any non-`str` output type is
-requested with schema-constrained decoding, which small models follow far
-more reliably than a tool call.
+For Ollama, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_SECONDS` and
+`OLLAMA_GENERATION_MAX_TOKENS` override the defaults in `src/llm/config.py`.
+For Anthropic, set these in `.env` (or in the shell):
+
+```sh
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your_api_key
+ANTHROPIC_MODEL=claude-sonnet-4-5  # optional
+```
+
+`ANTHROPIC_TIMEOUT_SECONDS` and `ANTHROPIC_GENERATION_MAX_TOKENS` optionally
+override the corresponding Anthropic defaults. `.env` is loaded without
+overwriting values already present in the shell. Agents sample at temperature 0
+so traces are reproducible, and any non-`str` output type is requested with
+schema-constrained decoding, which small models follow far more reliably than a
+tool call.
 
 ## Tests
 

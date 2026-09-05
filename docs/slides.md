@@ -1,6 +1,12 @@
-Supervised Fine Tuning Data Pipeline
+---
+marp: true
+theme: gaia
+paginate: true
+---
 
---- 
+# Supervised Fine Tuning Data Pipeline
+
+---
 
 Goals:
 - Inference with structured output and reasoning traces
@@ -8,10 +14,11 @@ Goals:
 - Filter by correctness of answer
 - Filter by hallucination / reasoning quality
 
---- 
+---
 Basic approach:
 - Lean hard on programmatic checks 
 - Plenty of unit + integration tests
+
 ---
 Inference
 
@@ -22,13 +29,14 @@ Quality filtering
 ---
 
 Hallucination filtering
-![[figures/filtering.excalidraw]]
+
+![h:450](figures/filtering.svg)
 
 ---
 
 Basic architecture
 
-![[figures/architecture.excalidraw]]
+![h:450](figures/architecture.svg)
 
 ---
 
@@ -41,4 +49,4 @@ How would we improve this?
 Could optimise for:
 - Time
 - Lval score of reasoning traces
-- Number of accepted reasoning traces 
+- Number of accepted reasoning traces

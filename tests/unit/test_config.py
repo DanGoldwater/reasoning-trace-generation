@@ -7,7 +7,9 @@ from src.llm.config import (
     INTEGRATION_GENERATION_MAX_TOKENS,
     INTEGRATION_MODEL_NAME,
     INTEGRATION_REQUEST_TIMEOUT_SECONDS,
+    AnthropicSettings,
     OllamaSettings,
+    settings_from_env,
 )
 
 
@@ -81,3 +83,38 @@ def test_non_positive_timeout_is_rejected() -> None:
 def test_invalid_generation_budget_names_the_offending_variable(value: str) -> None:
     with pytest.raises(ValueError, match="OLLAMA_GENERATION_MAX_TOKENS"):
         OllamaSettings.from_env(env={"OLLAMA_GENERATION_MAX_TOKENS": value})
+
+
+def test_provider_selection_defaults_to_ollama() -> None:
+    settings = settings_from_env(env={})
+
+    assert settings == OllamaSettings()
+
+
+def test_anthropic_settings_are_loaded_from_the_environment() -> None:
+    settings = settings_from_env(
+        env={
+            "LLM_PROVIDER": "anthropic",
+            "ANTHROPIC_API_KEY": "test-key",
+            "ANTHROPIC_MODEL": "claude-test",
+            "ANTHROPIC_TIMEOUT_SECONDS": "12.5",
+            "ANTHROPIC_GENERATION_MAX_TOKENS": "321",
+        }
+    )
+
+    assert settings == AnthropicSettings(
+        api_key="test-key",
+        model_name="claude-test",
+        timeout_seconds=12.5,
+        generation_max_tokens=321,
+    )
+
+
+def test_anthropic_provider_requires_an_api_key() -> None:
+    with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
+        settings_from_env(env={"LLM_PROVIDER": "anthropic"})
+
+
+def test_unknown_provider_is_rejected_with_the_setting_name() -> None:
+    with pytest.raises(ValueError, match="LLM_PROVIDER"):
+        settings_from_env(env={"LLM_PROVIDER": "unknown"})

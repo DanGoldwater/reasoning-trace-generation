@@ -47,11 +47,13 @@ async def run_reasoned[OutputT](
     with capture_run_messages() as captured:
         try:
             result = await agent.run(user_prompt)
-        except UnexpectedModelBehavior as error:
-            # A run that never produced a parseable answer usually ran out of
-            # budget mid-thought; say so rather than leaving a bare parse error.
+        except UnexpectedModelBehavior:
+            # A run that never produced a parseable answer has usually run out
+            # of budget mid-thought; say so rather than leaving a bare parse
+            # error. Anything else — a schema violation, say — is re-raised as
+            # itself, because calling it an overrun would misdirect the reader.
             _reject_if_overran(_final_response(captured))
-            raise ReasoningOverranError(str(error)) from error
+            raise
 
     messages = result.all_messages()
     final = _final_response(messages)

@@ -1,12 +1,19 @@
-"""Local-LLM plumbing: Ollama connection settings, health checks and agents."""
+"""Pydantic AI plumbing for Ollama and Anthropic."""
 
 from src.llm.agents import build_agent, build_model
-from src.llm.config import OllamaSettings
+from src.llm.config import (
+    AnthropicSettings,
+    LLMSettings,
+    OllamaSettings,
+    settings_from_env,
+)
 from src.llm.health import OllamaUnavailableError, list_installed_models, require_ready
 from src.llm.reasoning import MissingReasoningError, Reasoned, run_reasoned
 
 __all__ = [
     "MissingReasoningError",
+    "AnthropicSettings",
+    "LLMSettings",
     "OllamaSettings",
     "OllamaUnavailableError",
     "Reasoned",
@@ -15,4 +22,5 @@ __all__ = [
     "list_installed_models",
     "require_ready",
     "run_reasoned",
+    "settings_from_env",
 ]
