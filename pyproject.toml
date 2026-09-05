@@ -37,6 +37,7 @@ select = ["E", "F", "I", "B", "UP"]
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+timeout = 10
 asyncio_mode = "auto"
 markers = [
     "integration: exercises a real local Ollama server and model (no mocks)",

@@ -26,11 +26,10 @@ Generation always runs through [Pydantic AI](https://ai.pydantic.dev), which
 provides one `build_model` / `build_agent` interface over a local
 [Ollama](https://ollama.com) server and the native Anthropic API. Ollama is the
 default, so the existing local workflow remains unchanged. Install Ollama, then
-pull the production model and the smaller integration-test model:
+pull the model used for both production and the integration test:
 
 ```sh
 ollama pull qwen3.5:4b
-ollama pull qwen3.5:0.8b
 ```
 
 `src/llm/` holds the plumbing:
@@ -77,17 +76,27 @@ tool call.
 
 ```sh
 uv run pytest                      # everything
+uv run pytest -m integration        # one live question-to-record smoke test
 uv run pytest -m "not integration" # unit tests only, no server needed
 ```
 
 `tests/unit/` is hermetic: HTTP is stubbed at the transport boundary and the
-model at pydantic-ai's `FunctionModel` seam. `tests/integration/` runs against
-the real Ollama server with the real `qwen3.5:0.8b`, unmocked. It derives its
-model, request timeout and generation budget from the same `OllamaSettings`
-shape as production, with smaller values defined centrally. Each live test has
-a 30-second process timeout. Those tests deliberately **error rather than
-skip** when the server is down or the model is missing, so a broken local setup
-can never pass silently.
+model at pydantic-ai's `FunctionModel` seam. These tests cover our configuration,
+record assembly, validation, reasoning extraction and file handling, with a
+10-second timeout per test.
+
+`tests/integration/` contains one live smoke test against `qwen3.5:4b`. It sends
+an unambiguous, dataset-shaped question through the production answering path
+and checks that the returned object contains the expected allowed answer label,
+nonempty reasoning, question identity and prompt, and can round-trip through
+JSON. It tests the output contract, not biomedical accuracy or reasoning quality.
+It makes one agent run; Pydantic AI may retry invalid output within that run.
+
+The integration profile pins the production model and 1,536-token budget in
+`src/llm/config.py`, while taking the server address from `OLLAMA_BASE_URL`.
+Readiness has a 5-second HTTP timeout, the whole generation has a 60-second
+async deadline (including retries), and pytest enforces a 90-second limit on
+the entire live test. Missing Ollama or a missing model fails rather than skips.
 
 ## Development checks
 

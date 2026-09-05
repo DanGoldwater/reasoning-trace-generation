@@ -17,7 +17,9 @@ Goals:
 ---
 Basic approach:
 - Lean hard on programmatic checks 
-- Plenty of unit + integration tests
+- Plenty of unit tests 
+- integration tests which *do not* mock ollama. 
+- Utilise pydantic framework instead of string manipulation
 
 ---
 Inference
