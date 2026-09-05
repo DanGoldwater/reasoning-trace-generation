@@ -48,6 +48,7 @@ htmlcov/
 site/
 
 # Runtime files, logs, and local data
+data/
 *.log
 *.pid
 *.sqlite
