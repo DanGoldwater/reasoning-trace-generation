@@ -4,8 +4,6 @@ from pathlib import Path
 
 from src.dataset.models import TraceRecord
 
-DEFAULT_RUNS_DIR = Path("data/runs")
-
 
 def append_record(path: Path, record: TraceRecord) -> None:
     """Append one record to the JSON Lines file at ``path``.

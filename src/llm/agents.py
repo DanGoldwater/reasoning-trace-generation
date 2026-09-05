@@ -13,6 +13,7 @@ from pydantic_ai.settings import ModelSettings
 
 from src.settings import (
     DEFAULT_GENERATION_MAX_TOKENS,
+    DETERMINISTIC_TEMPERATURE,
     AnthropicSettings,
     LLMSettings,
     OllamaSettings,
@@ -20,14 +21,6 @@ from src.settings import (
 
 # Ollama ignores the key, but the OpenAI-compatible client insists on one.
 PLACEHOLDER_API_KEY = "ollama"
-
-# The OpenAI client retries a timed-out request twice by default, so a request
-# the model was never going to finish costs three times the timeout before it
-# is reported. A local server does not drop requests; it just runs long.
-OLLAMA_REQUEST_RETRIES = 0
-
-# Reasoning traces are only comparable across runs if sampling is deterministic.
-DETERMINISTIC_TEMPERATURE = 0.0
 
 # pydantic-ai defaults to sending the generation budget as
 # `max_completion_tokens`, which Ollama accepts and silently ignores; Ollama
@@ -57,7 +50,7 @@ def build_model(settings: LLMSettings) -> OpenAIChatModel | AnthropicModel:
             openai_client=AsyncOpenAI(
                 base_url=settings.openai_base_url,
                 api_key=PLACEHOLDER_API_KEY,
-                max_retries=OLLAMA_REQUEST_RETRIES,
+                max_retries=settings.request_retries,
             )
         )
         return OpenAIChatModel(

@@ -36,3 +36,12 @@ complete, finished, or ready while a check is failing or unrun.
 ## Commits
 
 - Do not commit changes. Leave commits for the user.
+
+## Configuration
+
+- Collect runtime configuration and defaults in `src/settings.py`. Do not scatter
+  tunable values (paths, model parameters, timeouts, retries, dataset limits, or
+  output verbosity) through implementation code or duplicate them in argparse.
+- Expose experiment and provider options through the validated settings models
+  so the effective configuration is captured in run metadata. CLI arguments
+  should override settings only when explicitly supplied.

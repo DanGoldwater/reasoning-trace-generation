@@ -390,3 +390,33 @@ async def test_timeout_is_recorded_without_waiting_for_remaining_generation(
     assert rejected.failures[0].reason == "TimeoutError"
     assert rejected.record.completion.answer is None
     assert (directory / "passed.jsonl").read_text() == ""
+
+
+@pytest.mark.parametrize("verbose", [False, True])
+async def test_progress_and_optional_full_ollama_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], verbose: bool
+) -> None:
+    source = tmp_path / "questions.json"
+    source.write_text(
+        '[{"question":"Which?","options":{"A":"No","B":"Yes"},"answer":"B"}]'
+    )
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        return ModelResponse(
+            parts=[ThinkingPart("Detailed reasoning."), TextPart('{"answer":"B"}')]
+        )
+
+    await run_experiment(
+        RunSettings(
+            input_path=source,
+            runs_dir=tmp_path / "runs",
+            llm=OllamaSettings(),
+            verbose_ollama=verbose,
+        ),
+        model=FunctionModel(respond),
+    )
+    output = capsys.readouterr().out
+    assert "Question 1/1 (id=0): 1 passed, 0 failed" in output
+    assert "total: 1 passed, 0 failed" in output
+    assert ("Detailed reasoning." in output) is verbose
+    assert ("Ollama question 0, completion 0:" in output) is verbose

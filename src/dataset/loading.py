@@ -5,8 +5,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from src.dataset.models import HFSample, Question
-
-DEFAULT_QUESTIONS_PATH = Path("data/private_qa.json")
+from src.settings import DEFAULT_QUESTIONS_PATH
 
 
 class InvalidQuestionError(ValueError):

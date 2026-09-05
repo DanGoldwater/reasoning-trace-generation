@@ -8,6 +8,7 @@ from pydantic_ai import Agent, UnexpectedModelBehavior
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import (
     ModelMessage,
+    ModelMessagesTypeAdapter,
     ModelResponse,
     TextPart,
     ThinkingPart,
@@ -39,6 +40,7 @@ async def generate_attempt(
     completion_id: int,
     timeout_seconds: float,
     instructions: str,
+    verbose: bool = False,
 ) -> GenerationAttempt:
     """Keep parseable output, or recover the final response after a failed request."""
     prompt = render_question(question.sample)
@@ -97,6 +99,17 @@ async def generate_attempt(
                 pass
             else:
                 attempt.record.completion.answer = partial.answer
+    finally:
+        if verbose:
+            responses: list[ModelMessage] = [
+                m for m in messages if isinstance(m, ModelResponse)
+            ]
+            print(
+                f"Ollama question {question.question_id}, completion {completion_id}:",
+                ModelMessagesTypeAdapter.dump_json(responses, indent=2).decode(),
+                sep="\n",
+                flush=True,
+            )
     if messages:
         attempt.record.prompting = Prompting(full_prompt=prompt_sent(messages))
     return attempt

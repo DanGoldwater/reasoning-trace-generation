@@ -18,6 +18,12 @@ def main() -> None:
     )
     parser.add_argument("--completions-per-question", type=int)
     parser.add_argument("--temperature", type=float)
+    parser.add_argument(
+        "--verbose-ollama",
+        action="store_true",
+        default=None,
+        help="Print full Ollama responses after each attempt (default: false).",
+    )
     arguments = vars(parser.parse_args())
     try:
         settings = RunSettings(

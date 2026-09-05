@@ -5,6 +5,7 @@ import hashlib
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from time import monotonic
 from typing import Literal
 
 import httpx
@@ -14,10 +15,10 @@ from pydantic_ai.models import Model
 
 from src.data_fetching import load_private_dataset
 from src.dataset.loading import load_questions
-from src.dataset.models import TraceRecord
+from src.dataset.models import Question, TraceRecord
 from src.dataset.runs import append_record
 from src.generation.answering import choice_type
-from src.generation.attempts import generate_attempt
+from src.generation.attempts import GenerationAttempt, generate_attempt
 from src.llm.agents import build_agent
 from src.llm.health import require_ready
 from src.quality import (
@@ -27,7 +28,12 @@ from src.quality import (
     QualityGate,
     evaluate_gates,
 )
-from src.settings import OllamaSettings, RunSettings
+from src.settings import (
+    RUN_DIRECTORY_ATTEMPTS,
+    RUN_NAME_WORDS,
+    OllamaSettings,
+    RunSettings,
+)
 
 
 class RunMetadata(BaseModel):
@@ -50,8 +56,8 @@ def save_metadata(directory: Path, metadata: RunMetadata) -> None:
 
 def create_run_directory(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
-    for _ in range(100):
-        directory = root / petname.Generate(3, "-")
+    for _ in range(RUN_DIRECTORY_ATTEMPTS):
+        directory = root / petname.Generate(RUN_NAME_WORDS, "-")
         try:
             directory.mkdir()
         except FileExistsError:
@@ -60,22 +66,17 @@ def create_run_directory(root: Path) -> Path:
     raise RuntimeError("Could not allocate a unique petname for this run.")
 
 
-async def run_experiment(
-    settings: RunSettings,
-    *,
-    gates: Sequence[QualityGate] | None = None,
-    model: Model | None = None,
-) -> Path:
-    """Write each evaluated completion before requesting the next one.
-
-    An optional model override is the external inference boundary used by tests.
-    """
+def select_gates(gates: Sequence[QualityGate] | None) -> tuple[QualityGate, ...]:
     selected = (
         tuple(gates) if gates is not None else (NonEmptyReasoning(), CorrectAnswer())
     )
     names = [gate.name for gate in selected]
     if len(set(names)) != len(names):
         raise ValueError("Quality gate names must be unique.")
+    return selected
+
+
+def prepare_questions(settings: RunSettings) -> list[Question]:
     if not settings.input_path.exists():
         try:
             load_private_dataset(output_path=settings.input_path)
@@ -88,57 +89,110 @@ async def run_experiment(
     questions = load_questions(settings.input_path)
     if settings.question_limit is not None:
         questions = questions[: settings.question_limit]
-    if model is None and isinstance(settings.llm, OllamaSettings):
-        with httpx.Client(timeout=5.0) as client:
-            require_ready(settings.llm, client=client)
+    return questions
+
+
+def initialize_run(
+    settings: RunSettings, gates: Sequence[QualityGate]
+) -> tuple[Path, RunMetadata]:
     directory = create_run_directory(settings.runs_dir)
     for filename in ("passed.jsonl", "failed.jsonl"):
         (directory / filename).touch()
     metadata = RunMetadata(
         name=directory.name,
         settings=settings,
-        gates=names,
+        gates=[gate.name for gate in gates],
         input_sha256=hashlib.sha256(settings.input_path.read_bytes()).hexdigest(),
         started_at=datetime.now(UTC),
     )
     save_metadata(directory, metadata)
+    return directory, metadata
+
+
+def persist_attempt(
+    attempt: GenerationAttempt,
+    selected: Sequence[QualityGate],
+    directory: Path,
+    metadata: RunMetadata,
+) -> None:
+    candidate = attempt.record
+    failures = [attempt.failure] if attempt.failure is not None else []
+    failures.extend(evaluate_gates(candidate, tuple(selected)))
+    if failures:
+        rejected = FailedRecord(
+            record=candidate,
+            failures=failures,
+            raw_response=attempt.raw_response,
+        )
+        with (directory / "failed.jsonl").open("a", encoding="utf-8") as stream:
+            stream.write(rejected.model_dump_json() + "\n")
+        metadata.failed += 1
+    else:
+        record = TraceRecord.model_validate(candidate.model_dump())
+        append_record(directory / "passed.jsonl", record)
+        metadata.passed += 1
+    save_metadata(directory, metadata)
+
+
+async def process_question(
+    question: Question,
+    settings: RunSettings,
+    gates: Sequence[QualityGate],
+    model: Model | None,
+    directory: Path,
+    metadata: RunMetadata,
+) -> None:
+    agent = build_agent(
+        settings.llm,
+        output_type=choice_type(question.sample.options),
+        instructions=settings.instructions,
+        temperature=settings.temperature,
+    )
+    if model is not None:
+        agent.model = model
+    for completion_id in range(settings.completions_per_question):
+        attempt = await generate_attempt(
+            agent,
+            question,
+            completion_id=completion_id,
+            timeout_seconds=settings.llm.timeout_seconds,
+            instructions=settings.instructions,
+            verbose=settings.verbose_ollama
+            and isinstance(settings.llm, OllamaSettings),
+        )
+        persist_attempt(attempt, gates, directory, metadata)
+
+
+async def run_experiment(
+    settings: RunSettings,
+    *,
+    gates: Sequence[QualityGate] | None = None,
+    model: Model | None = None,
+) -> Path:
+    """Write each evaluated completion before requesting the next one.
+
+    An optional model override is the external inference boundary used by tests.
+    """
+    selected = select_gates(gates)
+    questions = prepare_questions(settings)
+    if model is None and isinstance(settings.llm, OllamaSettings):
+        with httpx.Client(timeout=settings.llm.health_timeout_seconds) as client:
+            require_ready(settings.llm, client=client)
+    directory, metadata = initialize_run(settings, selected)
     try:
-        for question in questions:
-            agent = build_agent(
-                settings.llm,
-                output_type=choice_type(question.sample.options),
-                instructions=settings.instructions,
-                temperature=settings.temperature,
+        for index, question in enumerate(questions, start=1):
+            started = monotonic()
+            passed, failed = metadata.passed, metadata.failed
+            await process_question(
+                question, settings, selected, model, directory, metadata
             )
-            if model is not None:
-                agent.model = model
-            for completion_id in range(settings.completions_per_question):
-                attempt = await generate_attempt(
-                    agent,
-                    question,
-                    completion_id=completion_id,
-                    timeout_seconds=settings.llm.timeout_seconds,
-                    instructions=settings.instructions,
-                )
-                candidate = attempt.record
-                failures = [attempt.failure] if attempt.failure is not None else []
-                failures.extend(evaluate_gates(candidate, selected))
-                if failures:
-                    rejected = FailedRecord(
-                        record=candidate,
-                        failures=failures,
-                        raw_response=attempt.raw_response,
-                    )
-                    with (directory / "failed.jsonl").open(
-                        "a", encoding="utf-8"
-                    ) as stream:
-                        stream.write(rejected.model_dump_json() + "\n")
-                    metadata.failed += 1
-                else:
-                    record = TraceRecord.model_validate(candidate.model_dump())
-                    append_record(directory / "passed.jsonl", record)
-                    metadata.passed += 1
-                save_metadata(directory, metadata)
+            print(
+                f"Question {index}/{len(questions)} (id={question.question_id}): "
+                f"{metadata.passed - passed} passed, {metadata.failed - failed} failed "
+                f"in {monotonic() - started:.1f}s; "
+                f"total: {metadata.passed} passed, {metadata.failed} failed",
+                flush=True,
+            )
         metadata.status = "completed"
     except (KeyboardInterrupt, asyncio.CancelledError):
         metadata.status = "interrupted"

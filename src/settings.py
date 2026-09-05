@@ -9,10 +9,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.generation.prompts import ANSWER_INSTRUCTIONS
 
+DEFAULT_QUESTIONS_PATH = Path("data/private_qa.json")
+DEFAULT_RUNS_DIR = Path("data/runs")
+PRIVATE_REPO = "owkin/technical_test"
+DATASET_SPLIT = "train"
+DEFAULT_MAX_SAMPLES = 1000
+RUN_DIRECTORY_ATTEMPTS = 100
+RUN_NAME_WORDS = 3
+DETERMINISTIC_TEMPERATURE = 0.0
+OLLAMA_REQUEST_RETRIES = 0
 DEFAULT_BASE_URL = "http://localhost:11434"
 DEFAULT_MODEL_NAME = "qwen3.5:4b"
 DEFAULT_TIMEOUT_SECONDS = 120.0
-DEFAULT_GENERATION_MAX_TOKENS = 1536
+DEFAULT_GENERATION_MAX_TOKENS = 1536 * 2
 DEFAULT_ANTHROPIC_MODEL_NAME = "claude-sonnet-4-5"
 INTEGRATION_MODEL_NAME = DEFAULT_MODEL_NAME
 INTEGRATION_REQUEST_TIMEOUT_SECONDS = 60.0
@@ -51,6 +60,8 @@ class ProviderSettings(BaseSettings):
 class OllamaSettings(ProviderSettings):
     """Local model connection and generation budget."""
 
+    health_timeout_seconds: float = Field(default=5.0, gt=0, allow_inf_nan=False)
+    request_retries: int = Field(default=OLLAMA_REQUEST_RETRIES, ge=0)
     provider: Literal["ollama"] = "ollama"
     base_url: str = Field(default=DEFAULT_BASE_URL, validation_alias="OLLAMA_BASE_URL")
     model_name: str = Field(default=DEFAULT_MODEL_NAME, validation_alias="OLLAMA_MODEL")
@@ -139,12 +150,15 @@ class RunSettings(BaseSettings):
         env_prefix="RUN_", env_file=".env", extra="ignore", frozen=True
     )
 
-    input_path: Path = Path("data/private_qa.json")
-    runs_dir: Path = Path("data/runs")
+    input_path: Path = DEFAULT_QUESTIONS_PATH
+    runs_dir: Path = DEFAULT_RUNS_DIR
     question_limit: int | None = Field(default=None, gt=0)
     completions_per_question: int = Field(default=1, gt=0)
     llm: LLMSettings = Field(
         default_factory=settings_from_env, discriminator="provider"
     )
-    temperature: float = Field(default=0.0, ge=0, le=2, allow_inf_nan=False)
+    temperature: float = Field(
+        default=DETERMINISTIC_TEMPERATURE, ge=0, le=2, allow_inf_nan=False
+    )
     instructions: str = ANSWER_INSTRUCTIONS
+    verbose_ollama: bool = False

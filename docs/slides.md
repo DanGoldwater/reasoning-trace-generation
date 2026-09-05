@@ -16,12 +16,13 @@ Goals:
 
 ---
 Basic approach:
-- Lean hard on programmatic checks 
+- Lean hard on programmatic checks (ty, basedpyright, ruff)
 - Plenty of unit tests 
 - integration tests which *do not* mock ollama. 
 - Utilise pydantic framework instead of string manipulation
 
 ---
+
 Inference
 
 ---
@@ -39,6 +40,11 @@ Hallucination filtering
 Basic architecture
 
 ![h:450](figures/architecture.svg)
+
+
+---
+Problems
+- Many of the answers are constrained to a very small range of categorical answers. 
 
 ---
 

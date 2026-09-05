@@ -8,13 +8,12 @@ from datasets import load_dataset
 from dotenv import load_dotenv
 
 from src.dataset.models import HFSample
-
-PRIVATE_REPO = "owkin/technical_test"
-DEFAULT_OUTPUT_PATH = Path("data/private_qa.json")
+from src.settings import DATASET_SPLIT, DEFAULT_MAX_SAMPLES, PRIVATE_REPO
+from src.settings import DEFAULT_QUESTIONS_PATH as DEFAULT_OUTPUT_PATH
 
 
 def load_private_dataset(
-    max_samples: int = 1000,
+    max_samples: int = DEFAULT_MAX_SAMPLES,
     output_path: Path = DEFAULT_OUTPUT_PATH,
 ) -> list[HFSample]:
     """Load Q&A records and save up to ``max_samples`` as JSON."""
@@ -25,7 +24,7 @@ def load_private_dataset(
         message = "Set HF_TOKEN in your environment or .env file."
         raise ValueError(message)
 
-    dataset = load_dataset(PRIVATE_REPO, token=token, split="train")
+    dataset = load_dataset(PRIVATE_REPO, token=token, split=DATASET_SPLIT)
     sample_count = min(max_samples, len(dataset))
     samples = [
         HFSample.model_validate(sample)
