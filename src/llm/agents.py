@@ -15,6 +15,13 @@ PLACEHOLDER_API_KEY = "ollama"
 # Reasoning traces are only comparable across runs if sampling is deterministic.
 DETERMINISTIC_TEMPERATURE = 0.0
 
+# Schema-constrained decoding governs the answer channel only; the thinking
+# channel is free-running. Asked something it cannot answer within the schema, a
+# small model will reason in circles until it exhausts its context, so the token
+# budget is the only thing that bounds the call. Wide enough for a genuinely
+# long chain of thought, tight enough that a runaway one fails in seconds.
+DEFAULT_MAX_TOKENS = 1536
+
 
 def build_model(settings: OllamaSettings) -> OpenAIChatModel:
     """Build a pydantic-ai model that talks to the configured Ollama server."""
@@ -31,6 +38,7 @@ def build_agent(
     *,
     instructions: str | None = None,
     temperature: float = DETERMINISTIC_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> Agent[None, str]: ...
 
 
@@ -41,6 +49,7 @@ def build_agent[OutputT](
     output_type: type[OutputT],
     instructions: str | None = None,
     temperature: float = DETERMINISTIC_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> Agent[None, OutputT]: ...
 
 
@@ -50,6 +59,7 @@ def build_agent(
     output_type: type[Any] = str,
     instructions: str | None = None,
     temperature: float = DETERMINISTIC_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> Agent[None, Any]:
     """Build an agent that produces ``output_type`` from the configured model.
 
@@ -65,5 +75,6 @@ def build_agent(
         model_settings=ModelSettings(
             timeout=settings.timeout_seconds,
             temperature=temperature,
+            max_tokens=max_tokens,
         ),
     )

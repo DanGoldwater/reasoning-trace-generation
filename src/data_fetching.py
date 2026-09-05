@@ -13,7 +13,7 @@ DEFAULT_OUTPUT_PATH = Path("data/private_qa.json")
 
 
 def load_private_dataset(
-    max_samples: int = 50,
+    max_samples: int = 1000,
     output_path: Path = DEFAULT_OUTPUT_PATH,
 ) -> list[dict[str, Any]]:
     """Load Q&A records and save up to ``max_samples`` as JSON."""

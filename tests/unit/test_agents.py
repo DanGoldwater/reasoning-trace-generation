@@ -144,3 +144,20 @@ async def test_plain_text_output_is_left_unconstrained() -> None:
         await agent.run("Which option?")
 
     assert modes == ["text"]
+
+
+def test_agent_bounds_generation_by_default() -> None:
+    """Nothing constrains the thinking channel, so only a token budget bounds it.
+
+    Without this, a question the model finds contradictory spirals in ``<think>``
+    until it exhausts the context, costing the whole request timeout.
+    """
+    agent = build_agent(OllamaSettings())
+
+    assert model_settings_of(agent).get("max_tokens") == 1536
+
+
+def test_caller_can_widen_the_reasoning_budget() -> None:
+    agent = build_agent(OllamaSettings(), max_tokens=4096)
+
+    assert model_settings_of(agent).get("max_tokens") == 4096

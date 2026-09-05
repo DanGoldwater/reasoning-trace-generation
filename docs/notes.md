@@ -1,0 +1,7 @@
+- Start with lots of repo rules / linting / precommit etc
+- Ollama as local runner
+- Pydantic AI as abstraction framework. This is a good thing to put in early. 
+- Noticed that the initial sample of 50 is a bit weird / all "A" as answers.
+- Note that the pydantic framework handles the structured output, and seperating the reasoning traces from the struct output
+- We might want LLM as judge to act as a quality gate on reasoning traces
+- Getting problems with timeout
