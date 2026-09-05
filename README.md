@@ -4,7 +4,10 @@ Generate and filter reasoning traces from the private biology Q&A dataset using
 Pydantic AI and a local Ollama model, with an optional Anthropic judge that
 rejects hallucinated reasoning.
 
->[!Note] This readme is about how to get things running. Largely Claude written. Info about architecture, design decisions, etc, are in `docs/slides.md`. My intention is to use these slides in the presentation component. 
+> [!NOTE]
+> This readme is about how to get things running. Largely Claude written. Info about
+> architecture, design decisions, etc, are in `docs/slides.md`. My intention is to use
+> these slides in the presentation component.
 
 ## Setup and execution
 
@@ -13,12 +16,14 @@ Install uv and Ollama:
 brew install ollama
 brew install uv
 ```
-
+Then spin up the environment and pull the models.
 ```sh
 uv sync --group dev
 ollama pull qwen3.5:4b
 ollama pull qwen3.5:9b
 ```
+
+You can set experiment values (like which model to use) in `settings.py`.
 
 Start Ollama (`ollama serve` if the desktop app is not running). For dataset
 access, create `.env` in the repository root:
