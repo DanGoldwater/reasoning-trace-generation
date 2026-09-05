@@ -1,6 +1,0 @@
-set shell := ["bash", "-euo", "pipefail", "-c"]
-
-# Re-export the source diagrams and build a self-contained HTML slide deck.
-slides:
-    for drawing in figures/*.excalidraw; do npx --yes --registry=https://registry.npmjs.org @moona3k/excalidraw-export@0.2.1 "$drawing" --svg --output "${drawing%.excalidraw}.svg"; done
-    npx --yes --registry=https://registry.npmjs.org @marp-team/marp-cli@4.5.0 slides.md --html --output slides.html

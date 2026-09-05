@@ -11,17 +11,15 @@ from typing import Literal
 import httpx
 import petname
 from pydantic import BaseModel
-from pydantic_ai import Agent
 from pydantic_ai.models import Model
 
 from src.data_fetching import load_private_dataset
 from src.dataset.loading import load_questions
 from src.dataset.models import Question, TraceRecord
 from src.dataset.runs import append_record
-from src.generation.answering import Choice, choice_type
+from src.generation.answering import build_answering_agent
 from src.generation.attempts import GenerationAttempt, generate_attempt
 from src.judging import ReasoningHallucination
-from src.llm.agents import build_agent
 from src.llm.health import require_ready
 from src.quality import (
     CorrectAnswer,
@@ -31,12 +29,7 @@ from src.quality import (
     QualityGate,
     evaluate_gates,
 )
-from src.settings import (
-    RUN_DIRECTORY_ATTEMPTS,
-    RUN_NAME_WORDS,
-    OllamaSettings,
-    RunSettings,
-)
+from src.settings import RUN_NAME_WORDS, OllamaSettings, RunSettings
 
 
 class RunMetadata(BaseModel):
@@ -52,21 +45,9 @@ class RunMetadata(BaseModel):
 
 
 def save_metadata(directory: Path, metadata: RunMetadata) -> None:
-    temporary = directory / "run.json.tmp"
-    temporary.write_text(metadata.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    temporary.replace(directory / "run.json")
-
-
-def create_run_directory(root: Path) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    for _ in range(RUN_DIRECTORY_ATTEMPTS):
-        directory = root / petname.Generate(RUN_NAME_WORDS, "-")
-        try:
-            directory.mkdir()
-        except FileExistsError:
-            continue
-        return directory
-    raise RuntimeError("Could not allocate a unique petname for this run.")
+    (directory / "run.json").write_text(
+        metadata.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def select_gates(
@@ -79,9 +60,6 @@ def select_gates(
     )
     if settings.llm_judge == "on":
         selected += (ReasoningHallucination(settings.judge),)
-    names = [gate.name for gate in selected]
-    if len(set(names)) != len(names):
-        raise ValueError("Quality gate names must be unique.")
     return selected
 
 
@@ -104,7 +82,8 @@ def prepare_questions(settings: RunSettings) -> list[Question]:
 def initialize_run(
     settings: RunSettings, gates: Sequence[QualityGate]
 ) -> tuple[Path, RunMetadata]:
-    directory = create_run_directory(settings.runs_dir)
+    directory = settings.runs_dir / petname.Generate(RUN_NAME_WORDS, "-")
+    directory.mkdir(parents=True)
     for filename in ("passed.jsonl", "failed.jsonl"):
         (directory / filename).touch()
     metadata = RunMetadata(
@@ -120,7 +99,7 @@ def initialize_run(
 
 async def persist_attempt(
     attempt: GenerationAttempt,
-    selected: Sequence[QualityGate],
+    gates: Sequence[QualityGate],
     directory: Path,
     metadata: RunMetadata,
 ) -> bool:
@@ -129,41 +108,27 @@ async def persist_attempt(
     failures = [attempt.failure] if attempt.failure is not None else []
     failures.extend(
         await evaluate_gates(
-            candidate, tuple(selected), generation_complete=attempt.failure is None
+            candidate, gates, generation_complete=attempt.failure is None
         )
     )
     if failures:
-        rejected = FailedRecord(
-            record=candidate,
-            failures=failures,
-            raw_response=attempt.raw_response,
+        append_record(
+            directory / "failed.jsonl",
+            FailedRecord(
+                record=candidate,
+                failures=failures,
+                raw_response=attempt.raw_response,
+            ),
         )
-        with (directory / "failed.jsonl").open("a", encoding="utf-8") as stream:
-            stream.write(rejected.model_dump_json() + "\n")
         metadata.failed += 1
     else:
-        record = TraceRecord.model_validate(candidate.model_dump())
-        append_record(directory / "passed.jsonl", record)
+        append_record(
+            directory / "passed.jsonl",
+            TraceRecord.model_validate(candidate.model_dump()),
+        )
         metadata.passed += 1
     save_metadata(directory, metadata)
     return not failures
-
-
-def build_question_agent(
-    question: Question,
-    settings: RunSettings,
-    model: Model | None,
-) -> Agent[None, Choice]:
-    """An agent constrained to this question's option keys."""
-    agent = build_agent(
-        settings.llm,
-        output_type=choice_type(question.sample.options),
-        instructions=settings.instructions,
-        temperature=settings.temperature,
-    )
-    if model is not None:
-        agent.model = model
-    return agent
 
 
 async def process_question(
@@ -175,7 +140,14 @@ async def process_question(
     metadata: RunMetadata,
 ) -> tuple[int, int]:
     """Generate and persist every completion for one question, counting outcomes."""
-    agent = build_question_agent(question, settings, model)
+    agent = build_answering_agent(
+        settings.llm,
+        question.sample,
+        instructions=settings.instructions,
+        temperature=settings.temperature,
+    )
+    if model is not None:
+        agent.model = model
     outcomes: list[bool] = []
     for completion_id in range(settings.completions_per_question):
         attempt = await generate_attempt(
@@ -212,19 +184,20 @@ async def run_experiment(
     try:
         for index, question in enumerate(questions, start=1):
             started = monotonic()
-            print(
+            progress = (
                 f"[{metadata.name}] Question {index}/{len(questions)} "
-                f"(id={question.question_id}): "
-                f"generating {settings.completions_per_question}...",
+                f"(id={question.question_id}):"
+            )
+            print(
+                f"{progress} generating {settings.completions_per_question}...",
                 flush=True,
             )
             passed, failed = await process_question(
                 question, settings, selected, model, directory, metadata
             )
             print(
-                f"[{metadata.name}] Question {index}/{len(questions)} "
-                f"(id={question.question_id}): "
-                f"{passed} passed, {failed} failed in {monotonic() - started:.1f}s; "
+                f"{progress} {passed} passed, {failed} failed "
+                f"in {monotonic() - started:.1f}s; "
                 f"total: {metadata.passed} passed, {metadata.failed} failed",
                 flush=True,
             )

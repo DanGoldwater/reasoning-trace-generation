@@ -1,15 +1,14 @@
-"""Putting one question to a model and recording what came back."""
+"""The answer schema a question constrains its model to, and the agent for it."""
 
 from collections.abc import Iterable
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai import Agent
 
-from src.dataset.models import Completion, HFSample, Prompting, Question, TraceRecord
-from src.generation.prompts import ANSWER_INSTRUCTIONS, render_question
+from src.dataset.models import HFSample
+from src.generation.prompts import ANSWER_INSTRUCTIONS
 from src.llm.agents import build_agent
-from src.llm.reasoning import run_reasoned
-from src.settings import LLMSettings
+from src.settings import DETERMINISTIC_TEMPERATURE, LLMSettings
 
 
 class Choice(BaseModel):
@@ -44,36 +43,13 @@ def build_answering_agent(
     settings: LLMSettings,
     sample: HFSample,
     *,
-    max_tokens: int | None = None,
+    instructions: str = ANSWER_INSTRUCTIONS,
+    temperature: float = DETERMINISTIC_TEMPERATURE,
 ) -> Agent[None, Choice]:
     """Build the agent that answers ``sample``, constrained to its option keys."""
     return build_agent(
         settings,
         output_type=choice_type(sample.options),
-        instructions=ANSWER_INSTRUCTIONS,
-        max_tokens=max_tokens,
-    )
-
-
-async def answer_question(
-    agent: Agent[None, Choice],
-    question: Question,
-    *,
-    completion_id: int = 0,
-) -> TraceRecord:
-    """Ask ``agent`` one question and assemble the record for that completion.
-
-    ``agent`` is passed in rather than built here because a run asks the same
-    question repeatedly for different ``completion_id`` values.
-    """
-    reasoned = await run_reasoned(agent, render_question(question.sample))
-    return TraceRecord(
-        question_id=question.question_id,
-        completion_id=completion_id,
-        hf_sample=question.sample,
-        completion=Completion(
-            reasoning=reasoned.reasoning,
-            answer=reasoned.output.answer,
-        ),
-        prompting=Prompting(full_prompt=reasoned.prompt),
+        instructions=instructions,
+        temperature=temperature,
     )

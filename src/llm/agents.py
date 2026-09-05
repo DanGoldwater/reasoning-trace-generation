@@ -12,7 +12,6 @@ from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.settings import ModelSettings
 
 from src.settings import (
-    DEFAULT_GENERATION_MAX_TOKENS,
     DETERMINISTIC_TEMPERATURE,
     AnthropicSettings,
     LLMSettings,
@@ -30,9 +29,6 @@ PLACEHOLDER_API_KEY = "ollama"
 OLLAMA_PROFILE_OVERRIDES = OpenAIModelProfile(
     openai_chat_supports_max_completion_tokens=False
 )
-
-# Kept as a public alias while generation limits move into provider settings.
-DEFAULT_MAX_TOKENS = DEFAULT_GENERATION_MAX_TOKENS
 
 
 @overload

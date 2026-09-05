@@ -4,8 +4,6 @@ import pytest
 
 from src.settings import (
     DEFAULT_GENERATION_MAX_TOKENS,
-    INTEGRATION_GENERATION_MAX_TOKENS,
-    INTEGRATION_MODEL_NAME,
     INTEGRATION_REQUEST_TIMEOUT_SECONDS,
     AnthropicSettings,
     OllamaSettings,
@@ -43,16 +41,16 @@ def test_integration_settings_share_the_runtime_setting_names() -> None:
     settings = OllamaSettings.integration_from_env(
         env={
             "OLLAMA_BASE_URL": "http://ollama.internal:9999",
-            "OLLAMA_MODEL": "ignored-by-the-integration-profile:1b",
+            "OLLAMA_MODEL": "llama3.2:1b",
             "OLLAMA_TIMEOUT_SECONDS": "12.5",
             "OLLAMA_GENERATION_MAX_TOKENS": "321",
         }
     )
 
     assert settings.base_url == "http://ollama.internal:9999"
-    assert settings.model_name == INTEGRATION_MODEL_NAME
+    assert settings.model_name == "llama3.2:1b"
     assert settings.timeout_seconds == INTEGRATION_REQUEST_TIMEOUT_SECONDS
-    assert settings.generation_max_tokens == INTEGRATION_GENERATION_MAX_TOKENS
+    assert settings.generation_max_tokens == 321
 
 
 def test_openai_base_url_appends_the_v1_compatibility_path() -> None:

@@ -19,18 +19,14 @@ DEFAULT_RUNS_DIR = Path("data/runs")
 PRIVATE_REPO = "owkin/technical_test"
 DATASET_SPLIT = "train"
 DEFAULT_MAX_SAMPLES = 1000
-RUN_DIRECTORY_ATTEMPTS = 100
 RUN_NAME_WORDS = 3
 DETERMINISTIC_TEMPERATURE = 0.0
-OLLAMA_REQUEST_RETRIES = 0
 DEFAULT_BASE_URL = "http://localhost:11434"
 DEFAULT_MODEL_NAME = "qwen3.5:4b"
 DEFAULT_TIMEOUT_SECONDS = 120.0
 DEFAULT_GENERATION_MAX_TOKENS = 1536
 DEFAULT_ANTHROPIC_MODEL_NAME = "claude-sonnet-4-5"
-INTEGRATION_MODEL_NAME = DEFAULT_MODEL_NAME
 INTEGRATION_REQUEST_TIMEOUT_SECONDS = 60.0
-INTEGRATION_GENERATION_MAX_TOKENS = DEFAULT_GENERATION_MAX_TOKENS
 INTEGRATION_TEST_TIMEOUT_SECONDS = 90.0
 
 
@@ -66,7 +62,7 @@ class OllamaSettings(ProviderSettings):
     """Local model connection and generation budget."""
 
     health_timeout_seconds: float = Field(default=5.0, gt=0, allow_inf_nan=False)
-    request_retries: int = Field(default=OLLAMA_REQUEST_RETRIES, ge=0)
+    request_retries: int = Field(default=0, ge=0)
     provider: Literal["ollama"] = "ollama"
     base_url: str = Field(default=DEFAULT_BASE_URL, validation_alias="OLLAMA_BASE_URL")
     model_name: str = Field(default=DEFAULT_MODEL_NAME, validation_alias="OLLAMA_MODEL")
@@ -93,12 +89,9 @@ class OllamaSettings(ProviderSettings):
 
     @classmethod
     def integration_from_env(cls, env: Mapping[str, str] | None = None) -> Self:
+        """The runtime settings with the shorter deadline the live test needs."""
         return cls.from_env(env).model_copy(
-            update={
-                "model_name": INTEGRATION_MODEL_NAME,
-                "timeout_seconds": INTEGRATION_REQUEST_TIMEOUT_SECONDS,
-                "generation_max_tokens": INTEGRATION_GENERATION_MAX_TOKENS,
-            }
+            update={"timeout_seconds": INTEGRATION_REQUEST_TIMEOUT_SECONDS}
         )
 
 

@@ -1,6 +1,7 @@
 """Composable quality gates over generated candidates."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
@@ -109,7 +110,7 @@ class CorrectAnswer(QualityGate):
 
 async def evaluate_gates(
     record: CandidateRecord,
-    gates: tuple[QualityGate, ...],
+    gates: Sequence[QualityGate],
     *,
     generation_complete: bool = True,
 ) -> list[GateFailure]:

@@ -2,10 +2,12 @@
 
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from src.dataset.models import TraceRecord
 
 
-def append_record(path: Path, record: TraceRecord) -> None:
+def append_record(path: Path, record: BaseModel) -> None:
     """Append one record to the JSON Lines file at ``path``.
 
     Appending a line at a time means a run that dies halfway leaves every trace
