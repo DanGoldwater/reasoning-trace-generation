@@ -20,6 +20,58 @@ directory is intentionally ignored by Git because it may contain private data.
 
 Environment variables already set in the shell take precedence over `.env`.
 
+## Local LLM
+
+Generation runs against a local [Ollama](https://ollama.com) server through the
+[pydantic-ai](https://ai.pydantic.dev) framework. Install Ollama, then pull the
+tiny model the test suite pins:
+
+```sh
+ollama pull qwen3:0.6b
+```
+
+`src/llm/` holds the plumbing:
+
+| Module | Purpose |
+|---|---|
+| `config.py` | `OllamaSettings` — base URL, model and timeout, read from the environment |
+| `health.py` | `list_installed_models` / `require_ready` — fail early with an actionable message |
+| `agents.py` | `build_model` / `build_agent` — pydantic-ai objects wired to the local server |
+
+```python
+from pydantic import BaseModel
+
+from src.llm import OllamaSettings, build_agent, require_ready
+
+class City(BaseModel):
+    name: str
+    country: str
+
+settings = OllamaSettings.from_env()
+require_ready(settings)
+
+agent = build_agent(settings, output_type=City, instructions="Extract the city.")
+result = await agent.run("The conference was held in Paris, France.")
+```
+
+`OLLAMA_BASE_URL`, `OLLAMA_MODEL` and `OLLAMA_TIMEOUT_SECONDS` override the
+defaults; see `.env.example`. Agents sample at temperature 0 so traces are
+reproducible, and any non-`str` output type is requested with schema-constrained
+decoding, which small models follow far more reliably than a tool call.
+
+## Tests
+
+```sh
+uv run pytest                      # everything
+uv run pytest -m "not integration" # unit tests only, no server needed
+```
+
+`tests/unit/` is hermetic: HTTP is stubbed at the transport boundary and the
+model at pydantic-ai's `FunctionModel` seam. `tests/integration/` runs against
+the real Ollama server with the real `qwen3:0.6b`, unmocked. Those tests
+deliberately **error rather than skip** when the server is down or the model is
+missing, so a broken local setup can never pass silently.
+
 ## Development checks
 
 Install the development tools and Git hook:

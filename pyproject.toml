@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "datasets>=4.0.0",
+    "httpx>=0.28.1",
+    "pydantic-ai-slim[openai]>=2.40.0",
     "python-dotenv>=1.1.0",
 ]
 
@@ -14,6 +16,8 @@ dev = [
     "basedpyright>=1.39.10",
     "matplotlib>=3.11.1",
     "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.16.6",
     "ty>=0.0.78",
 ]
@@ -27,3 +31,12 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+asyncio_mode = "auto"
+markers = [
+    "integration: exercises a real local Ollama server and model (no mocks)",
+]
