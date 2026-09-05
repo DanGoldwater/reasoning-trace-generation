@@ -1,0 +1,81 @@
+# Python bytecode and extension modules
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments and dependency tooling
+.venv/
+venv/
+env/
+ENV/
+.uv/
+
+# Packaging and build artefacts
+build/
+dist/
+develop-eggs/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Test, coverage, lint, type-check, and documentation output
+.pytest_cache/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+*.py,cover
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.basedpyright/
+site/
+
+# Runtime files, logs, and local data
+*.log
+*.pid
+*.sqlite
+*.sqlite3
+*.db
+instance/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Editor and operating-system files
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local developer tooling
+.direnv/
