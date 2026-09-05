@@ -52,10 +52,10 @@ Problems
 
 - Many of the answers are constrained to a very small range of categorical answers. This means a correctness gate is unlikely to provide the protection we might expect it to.
 - Reasoning traces from the Qwen model show a _lot_ of hallucinations.
-- ***
+- Often found that the model would hit token limit without supplying an answer. Increasing token limit didn't seem to help - started looping.
+- Hallucination filtering difficult without source material.
+- With 4b model, only 3/10 questions passed (without ljudge). Mostly on token limits / spiralling. 
 
-Iterating
-![ok](figures/image.png)
 
 ---
 
@@ -63,7 +63,7 @@ How would we improve this?
 
 - Constrained optimisation over hyperparameters:
   - Max tokens
-  - System prompt
+  - System prompt (good candidate for GEPA)
   - Inclusion / exclusion of supporting information
 
 Could optimise for:
